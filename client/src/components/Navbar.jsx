@@ -27,13 +27,6 @@ const Navbar = () => {
                 <div className="navbar-links">
                     {user ? (
                         <>
-                            {/* Become a Seller — only for logged-in NON-sellers */}
-                            {!user.isStudentSeller && (
-                                <Link to="/become-seller" className="navbar-link navbar-link--seller">
-                                    Become a Seller
-                                </Link>
-                            )}
-
                             {/* Post a Gig — only for student sellers */}
                             {user.isStudentSeller && (
                                 <Link to="/dashboard" className="navbar-btn-primary">
@@ -78,14 +71,11 @@ const Navbar = () => {
                         </>
                     ) : (
                         <>
-                            <Link to="/become-seller" className="navbar-link navbar-link--seller">
-                                Become a Seller
-                            </Link>
                             <Link to="/login" className="navbar-link">
                                 Sign In
                             </Link>
                             <Link to="/register" className="navbar-btn-join">
-                                Join
+                                Create Account
                             </Link>
                         </>
                     )}
@@ -112,11 +102,6 @@ const Navbar = () => {
                 <div className="navbar-mobile-menu">
                     {user ? (
                         <>
-                            {!user.isStudentSeller && (
-                                <Link to="/become-seller" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
-                                    Become a Seller
-                                </Link>
-                            )}
                             {user.isStudentSeller && (
                                 <Link to="/dashboard" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
                                     Post a Gig
@@ -128,14 +113,11 @@ const Navbar = () => {
                         </>
                     ) : (
                         <>
-                            <Link to="/become-seller" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
-                                Become a Seller
-                            </Link>
                             <Link to="/login" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
                                 Sign In
                             </Link>
                             <Link to="/register" className="navbar-mobile-link navbar-mobile-link--join" onClick={() => setMobileOpen(false)}>
-                                Join
+                                Create Account
                             </Link>
                         </>
                     )}
