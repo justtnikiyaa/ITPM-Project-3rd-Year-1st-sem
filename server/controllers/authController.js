@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { sendOTPEmail, generateOTP } = require('./otpController');
 
 // Sri Lankan university email regex
 const sriLankaUniRegex =
@@ -44,12 +45,23 @@ const register = async (req, res) => {
             universityDomain = email.split('@')[1];
         }
 
+        // Generate OTP
+        const otp = generateOTP();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
         const user = await User.create({
             name,
             email: email.toLowerCase(),
             password,
             isStudentSeller,
             universityDomain,
+            otp,
+            otpExpires,
+        });
+
+        // Send OTP email in background (don't block the registration response)
+        sendOTPEmail(user.email, otp, user.name).catch((emailErr) => {
+            console.error('Failed to send OTP email:', emailErr.message);
         });
 
         const token = generateToken(user);
@@ -61,6 +73,7 @@ const register = async (req, res) => {
             isStudentSeller: user.isStudentSeller,
             universityDomain: user.universityDomain,
             availability: user.availability,
+            isVerified: user.isVerified,
             token,
         });
     } catch (error) {
@@ -100,6 +113,7 @@ const login = async (req, res) => {
             isStudentSeller: user.isStudentSeller,
             universityDomain: user.universityDomain,
             availability: user.availability,
+            isVerified: user.isVerified,
             token,
         });
     } catch (error) {

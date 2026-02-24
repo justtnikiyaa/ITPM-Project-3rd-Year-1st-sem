@@ -18,7 +18,7 @@ const BuyerRegister = () => {
 
         try {
             await register(name, email, password);
-            navigate('/');
+            navigate('/verify-email');
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
         } finally {

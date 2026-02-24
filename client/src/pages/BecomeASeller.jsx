@@ -29,7 +29,7 @@ const BecomeASeller = () => {
         setSubmitting(true);
         try {
             await register(name, email, password);
-            navigate('/dashboard');
+            navigate('/verify-email');
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
         } finally {

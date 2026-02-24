@@ -6,6 +6,7 @@ import BecomeASeller from './pages/BecomeASeller';
 import BuyerRegister from './pages/BuyerRegister';
 import RegisterChoice from './pages/RegisterChoice';
 import Login from './pages/Login';
+import VerifyEmail from './pages/VerifyEmail';
 import SellerDashboard from './pages/SellerDashboard';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
           <Route path="/register/buyer" element={<BuyerRegister />} />
           <Route path="/become-seller" element={<BecomeASeller />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/dashboard" element={<SellerDashboard />} />
         </Routes>
       </Router>

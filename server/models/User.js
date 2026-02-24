@@ -33,6 +33,16 @@ const userSchema = new mongoose.Schema(
       enum: ['Active', 'Away'],
       default: 'Active',
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otp: {
+      type: String,
+    },
+    otpExpires: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
