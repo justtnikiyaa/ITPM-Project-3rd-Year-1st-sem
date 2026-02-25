@@ -10,20 +10,38 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    // Load from localStorage on mount
-    useEffect(() => {
+    // Synchronously initialize from localStorage to avoid race conditions
+    const [user, setUser] = useState(() => {
         const storedUser = localStorage.getItem('unigig_user');
+        return storedUser ? JSON.parse(storedUser) : null;
+    });
+    const [token, setToken] = useState(() => {
         const storedToken = localStorage.getItem('unigig_token');
-        if (storedUser && storedToken) {
-            setUser(JSON.parse(storedUser));
-            setToken(storedToken);
+        if (storedToken) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
         }
-        setLoading(false);
+        return storedToken || null;
+    });
+    const [loading, setLoading] = useState(false); // Set to false since we initialize sync
+
+    // Robust token handling via interceptor
+    useEffect(() => {
+        const interceptor = axios.interceptors.request.use(
+            (config) => {
+                const storedToken = localStorage.getItem('unigig_token');
+                if (storedToken) {
+                    config.headers.Authorization = `Bearer ${storedToken}`;
+                }
+                return config;
+            },
+            (error) => {
+                return Promise.reject(error);
+            }
+        );
+
+        return () => {
+            axios.interceptors.request.eject(interceptor);
+        };
     }, []);
 
     const register = async (name, email, password) => {

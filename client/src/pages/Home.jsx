@@ -72,7 +72,7 @@ const Home = () => {
     };
 
     return (
-        <div>
+        <div className="home-page-light">
             {/* ═══ Hero Section ═══ */}
             <div className="hero-section">
                 {/* Animated glow orbs */}
@@ -175,6 +175,10 @@ const Home = () => {
 
             {/* ═══ Service Grid Section ═══ */}
             <div className="service-grid-section">
+                {/* Animated glow orbs */}
+                <div className="glow-orb glow-orb--purple"></div>
+                <div className="glow-orb glow-orb--teal"></div>
+                <div className="glow-orb glow-orb--pink"></div>
                 <div className="service-grid-container">
                     {/* Section Header */}
                     <div className="service-grid-header animate-fade-in-up">
@@ -246,6 +250,7 @@ const Home = () => {
                                     key={service._id}
                                     className="service-card animate-fade-in-up"
                                     style={{ animationDelay: `${index * 60}ms` }}
+                                    onClick={() => navigate(`/service/${service._id}`)}
                                 >
                                     {/* Thumbnail */}
                                     <div className="service-card__image">
