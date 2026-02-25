@@ -8,6 +8,7 @@ import RegisterChoice from './pages/RegisterChoice';
 import Login from './pages/Login';
 import VerifyEmail from './pages/VerifyEmail';
 import SellerDashboard from './pages/SellerDashboard';
+import ServiceDetails from './pages/ServiceDetails';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/dashboard" element={<SellerDashboard />} />
+          <Route path="/service/:id" element={<ServiceDetails />} />
         </Routes>
       </Router>
     </AuthProvider>

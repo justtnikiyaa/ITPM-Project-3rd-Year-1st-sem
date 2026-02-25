@@ -250,6 +250,7 @@ const Home = () => {
                                     key={service._id}
                                     className="service-card animate-fade-in-up"
                                     style={{ animationDelay: `${index * 60}ms` }}
+                                    onClick={() => navigate(`/service/${service._id}`)}
                                 >
                                     {/* Thumbnail */}
                                     <div className="service-card__image">

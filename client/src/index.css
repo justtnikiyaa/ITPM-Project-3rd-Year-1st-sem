@@ -100,11 +100,13 @@
 
 /* ── Glassmorphism Card ── */
 .glass-card {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(108, 99, 255, 0.1);
-  border-radius: 16px;
+  border: 1px solid rgba(108, 99, 255, 0.12);
+  border-radius: 20px;
+  color: #1a1a2e;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 }
 
 /* ── Gradient Text ── */
@@ -1317,7 +1319,21 @@
 
 .home-page-light {
   background: #ffffff;
+  color: #1a1a2e;
   min-height: 100vh;
+}
+
+.home-page-light h1,
+.home-page-light h2,
+.home-page-light h3,
+.home-page-light h4 {
+  color: #1a1a2e;
+}
+
+.home-page-light p,
+.home-page-light span {
+  color: #4b5563;
+  /* Gray-600 */
 }
 
 /* ═══════════════════════════════════════════════════════════════
