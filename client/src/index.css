@@ -93,17 +93,17 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.03), transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
 
 /* ── Glassmorphism Card ── */
 .glass-card {
-  background: rgba(26, 25, 48, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(108, 99, 255, 0.15);
+  border: 1px solid rgba(108, 99, 255, 0.1);
   border-radius: 16px;
 }
 
@@ -1315,14 +1315,22 @@
 }
 
 
+.home-page-light {
+  background: #ffffff;
+  min-height: 100vh;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    SERVICE GRID SECTION (Home Page)
    ═══════════════════════════════════════════════════════════════ */
 
 .service-grid-section {
-  background: var(--color-bg-dark);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
   padding: 80px 0 60px;
   min-height: 50vh;
+  position: relative;
+  overflow: hidden;
+  border-top: none;
 }
 
 .service-grid-container {
@@ -1340,34 +1348,40 @@
   gap: 12px;
 }
 
+.service-grid-header h2 {
+  color: #1a1a2e;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
-   SERVICE CARDS
+   SERVICE CARDS — LIGHT THEME
    ═══════════════════════════════════════════════════════════════ */
 
 .service-card {
-  background: rgba(26, 25, 48, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(108, 99, 255, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(108, 99, 255, 0.1);
   border-radius: 20px;
   overflow: hidden;
-  transition: all 0.35s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .service-card:hover {
-  transform: translateY(-6px);
-  border-color: rgba(108, 99, 255, 0.35);
+  transform: translateY(-8px);
+  border-color: rgba(108, 99, 255, 0.25);
   box-shadow:
-    0 20px 50px rgba(108, 99, 255, 0.12),
-    0 8px 20px rgba(0, 0, 0, 0.3);
+    0 20px 40px rgba(108, 99, 255, 0.08),
+    0 8px 16px rgba(0, 0, 0, 0.04);
 }
 
 .service-card__image {
   position: relative;
-  height: 180px;
+  height: 190px;
   overflow: hidden;
+  background: #f4f4f9;
 }
 
 .service-card__image img {
@@ -1385,10 +1399,10 @@
   position: absolute;
   bottom: 10px;
   right: 10px;
-  background: rgba(26, 25, 48, 0.85);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(108, 99, 255, 0.2);
+  border: 1px solid rgba(108, 99, 255, 0.15);
   border-radius: 10px;
   padding: 6px 12px;
   font-size: 0.8rem;
@@ -1400,18 +1414,26 @@
 }
 
 
-/* ── Service Card Skeleton ── */
+/* ── Service Card Skeleton — Light ── */
 
 .service-card-skeleton {
-  background: rgba(26, 25, 48, 0.5);
-  border: 1px solid rgba(108, 99, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid #e8e8f0;
   border-radius: 20px;
   overflow: hidden;
 }
 
 .service-card-skeleton__image {
-  height: 180px;
-  background: rgba(255, 255, 255, 0.03);
+  height: 190px;
+  background: #f0f0f5;
+}
+
+.service-card-skeleton .h-3,
+.service-card-skeleton .h-4,
+.service-card-skeleton .h-5 {
+  background: #f0f0f5;
+  position: relative;
+  overflow: hidden;
 }
 
 
