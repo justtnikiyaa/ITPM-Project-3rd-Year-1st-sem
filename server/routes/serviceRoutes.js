@@ -5,6 +5,9 @@ const {
     createService,
     getServices,
     getMyServices,
+    getServiceById,
+    updateService,
+    deleteService,
 } = require('../controllers/serviceController');
 const { protect, requireStudent } = require('../middleware/auth');
 
@@ -40,8 +43,16 @@ const upload = multer({
 // Public - get all services
 router.get('/', getServices);
 
-// Private - get current seller's services
+// Private - get current seller's services (must appear before '/:id'!
+// otherwise 'my' is treated as an id and will 404)
 router.get('/my', protect, requireStudent, getMyServices);
+
+// Public - get single service by id
+router.get('/:id', getServiceById);
+
+// Private - update/delete service by id (only owner)
+router.patch('/:id', protect, requireStudent, upload.single('coverImage'), updateService);
+router.delete('/:id', protect, requireStudent, deleteService);
 
 // Private - create service (student sellers only)
 router.post('/', protect, requireStudent, upload.single('coverImage'), createService);

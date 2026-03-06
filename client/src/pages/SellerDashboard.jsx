@@ -13,9 +13,19 @@ import {
     LayoutDashboard,
     Zap,
     Moon,
+    Edit3,
+    Trash2,
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// we rely on Vite's dev server proxy so that all `/api` requests
+// are treated as same‑origin. using an absolute URL (API_BASE) causes
+// cross‑origin requests which sometimes trigger CORS/preflight issues
+// and can result in intermittent 401/Network errors when returning to
+// the dashboard. keep paths relative and let the proxy handle the host.
+const API_BASE = import.meta.env.VITE_API_URL || ''; // leave blank for relative paths
+// helper to create full url for assets (falls back to same origin)
+const assetUrl = (path) => `${API_BASE}${path}`;
+
 
 const SellerDashboard = () => {
     const { user, updateUser } = useAuth();
@@ -28,6 +38,8 @@ const SellerDashboard = () => {
     const [toggling, setToggling] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [editingGig, setEditingGig] = useState(null); // gig object being edited
+    const [deletingIds, setDeletingIds] = useState([]); // track ids being deleted
 
     // Form state
     const [title, setTitle] = useState('');
@@ -48,19 +60,36 @@ const SellerDashboard = () => {
     }, [user, navigate]);
 
     // Load seller's gigs
-    useEffect(() => {
-        const fetchGigs = async () => {
-            try {
-                const res = await axios.get('/api/services/my');
-                setGigs(res.data);
-            } catch (err) {
-                console.error('Failed to load gigs:', err);
-            } finally {
-                setLoading(false);
+    const fetchGigs = useCallback(async () => {
+        try {
+            setError('');
+            setLoading(true);
+            // make the request with a relative URL so that the dev proxy
+            // adds the correct host and no cross‑origin preflight is required
+            const res = await axios.get('/api/services/my');
+            setGigs(res.data);
+            console.log(`Loaded ${res.data.length} gigs`);
+        } catch (err) {
+            console.error('Failed to load gigs:', err.response || err.message || err);
+            const message = err.response?.data?.message;
+            // if the backend returned 404 because route was mis‑ordered we
+            // want to show empty state rather than a scary banner
+            if (err.response?.status === 404 && message === 'Service not found') {
+                setGigs([]);
+                setError('');
+            } else {
+                setError(
+                    message || 'Failed to load your gigs. Please try again.'
+                );
             }
-        };
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
         if (user?.isStudentSeller) fetchGigs();
-    }, [user]);
+    }, [user, fetchGigs]);
 
     // Toggle availability
     const handleToggleAvailability = async () => {
@@ -110,7 +139,7 @@ const SellerDashboard = () => {
         setImagePreview(null);
     };
 
-    // Submit new gig
+    // Submit new gig or update existing one
     const handleSubmitGig = async (e) => {
         e.preventDefault();
         setError('');
@@ -126,12 +155,30 @@ const SellerDashboard = () => {
             formData.append('deliveryTime', deliveryTime);
             if (coverImage) formData.append('coverImage', coverImage);
 
-            const res = await axios.post('/api/services', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            let res;
+            if (editingGig) {
+                // update existing
+                res = await axios.patch(
+                    `/api/services/${editingGig._id}`,
+                    formData,
+                    {
+                        headers: { 'Content-Type': 'multipart/form-data' },
+                    }
+                );
+                // replace gig in list
+                setGigs((prev) =>
+                    prev.map((g) => (g._id === editingGig._id ? res.data : g))
+                );
+                setSuccess('Gig updated successfully! 🎉');
+            } else {
+                res = await axios.post('/api/services', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                setGigs([res.data, ...gigs]);
+                setSuccess('Gig posted successfully! 🎉');
+            }
 
-            setGigs([res.data, ...gigs]);
-            setSuccess('Gig posted successfully! 🎉');
+            // reset form state
             setTitle('');
             setDescription('');
             setCategory('');
@@ -140,10 +187,43 @@ const SellerDashboard = () => {
             setCoverImage(null);
             setImagePreview(null);
             setShowForm(false);
+            setEditingGig(null);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to create gig');
+            setError(
+                err.response?.data?.message ||
+                (editingGig ? 'Failed to update gig' : 'Failed to create gig')
+            );
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Populate form with gig data for editing
+    const handleEdit = (gig) => {
+        setEditingGig(gig);
+        setTitle(gig.title);
+        setDescription(gig.description);
+        setCategory(gig.category);
+        setPrice(gig.price);
+        setDeliveryTime(gig.deliveryTime);
+        setImagePreview(gig.coverImage ? assetUrl(gig.coverImage) : null);
+        setCoverImage(null); // will only upload new image if user selects one
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Delete a gig
+    const handleDelete = async (gigId) => {
+        if (!window.confirm('Are you sure you want to delete this gig?')) return;
+        setDeletingIds((prev) => [...prev, gigId]);
+        try {
+            await axios.delete(`/api/services/${gigId}`);
+            setGigs((prev) => prev.filter((g) => g._id !== gigId));
+            setSuccess('Gig deleted successfully.');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to delete gig. Please try again.');
+        } finally {
+            setDeletingIds((prev) => prev.filter((id) => id !== gigId));
         }
     };
 
@@ -214,7 +294,7 @@ const SellerDashboard = () => {
                             className="seller-dash-light__new-btn"
                         >
                             <Plus />
-                            Post a Gig
+                            Create New Gig
                         </button>
                     </div>
                 </div>
@@ -423,6 +503,7 @@ const SellerDashboard = () => {
                                     onClick={() => {
                                         setShowForm(false);
                                         removeImage();
+                                        setEditingGig(null);
                                     }}
                                     className="seller-dash-light__cancel-btn"
                                 >
@@ -434,78 +515,109 @@ const SellerDashboard = () => {
                 )}
 
                 {/* ═══ My Gigs Grid ═══ */}
-                <div>
+                {/* ── Gigs Grid ── */}
+                <div className="seller-dash-light__grid-header">
                     <h2 className="seller-dash-light__section-title">
                         My <span className="gradient-text">Gigs</span>
-                        <span className="count">({gigs.length})</span>
                     </h2>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium opacity-60">
+                            {gigs.length} {gigs.length === 1 ? 'gig' : 'gigs'} found
+                        </span>
+                        <button
+                            onClick={fetchGigs}
+                            disabled={loading}
+                            className="p-2 rounded-full hover:bg-black/5 transition-colors"
+                            title="Reload gigs"
+                        >
+                            <Sparkles className={loading ? 'animate-spin' : ''} size={18} />
+                        </button>
+                    </div>
+                </div>
 
-                    {loading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="seller-dash-light__skeleton seller-dash-light__skeleton-shimmer" style={{ height: '256px' }} />
-                            ))}
+                {loading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="seller-dash-light__skeleton seller-dash-light__skeleton-shimmer" style={{ height: '256px' }} />
+                        ))}
+                    </div>
+                ) : gigs.length === 0 ? (
+                    <div className="seller-dash-light__empty">
+                        <div className="seller-dash-light__empty-icon">
+                            <Sparkles />
                         </div>
-                    ) : gigs.length === 0 ? (
-                        <div className="seller-dash-light__empty">
-                            <div className="seller-dash-light__empty-icon">
-                                <Sparkles />
-                            </div>
-                            <h3>No gigs yet</h3>
-                            <p>Create your first gig and start earning!</p>
-                            <button
-                                onClick={() => setShowForm(true)}
-                                className="seller-dash-light__empty-btn"
+                        <h3>No gigs yet</h3>
+                        <p>Create your first gig and start earning!</p>
+                        <button
+                            onClick={() => setShowForm(true)}
+                            className="seller-dash-light__empty-btn"
+                        >
+                            <Plus />
+                            Create Your First Gig
+                        </button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {gigs.map((gig, index) => (
+                            <div
+                                key={gig._id}
+                                className="seller-dash-light__gig-card animate-fade-in-up"
+                                style={{ animationDelay: `${index * 80}ms`, position: 'relative' }}
                             >
-                                <Plus />
-                                Create Your First Gig
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {gigs.map((gig, index) => (
-                                <div
-                                    key={gig._id}
-                                    className="seller-dash-light__gig-card animate-fade-in-up"
-                                    style={{ animationDelay: `${index * 80}ms` }}
-                                >
-                                    {/* Gig Image / Placeholder */}
-                                    <div className="seller-dash-light__gig-image">
-                                        {gig.coverImage ? (
-                                            <img
-                                                src={`${API_BASE}${gig.coverImage}`}
-                                                alt={gig.title}
-                                            />
-                                        ) : (
-                                            <div className="seller-dash-light__gig-placeholder">
-                                                <ImagePlus />
-                                            </div>
-                                        )}
-                                        {/* Price badge */}
-                                        <div className="seller-dash-light__gig-price gradient-text">
-                                            LKR {gig.price?.toLocaleString()}
+                                {/* edit/delete actions */}
+                                <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '6px', zIndex: 10 }}>
+                                    <button
+                                        onClick={() => handleEdit(gig)}
+                                        style={{ padding: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.9)', border: '1px solid #ddd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        title="Edit gig"
+                                    >
+                                        <Edit3 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(gig._id)}
+                                        style={{ padding: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.9)', border: '1px solid #ddd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        title="Delete gig"
+                                        disabled={deletingIds.includes(gig._id)}
+                                    >
+                                        <Trash2 size={16} color="#ef4444" />
+                                    </button>
+                                </div>
+                                {/* Gig Image / Placeholder */}
+                                <div className="seller-dash-light__gig-image">
+                                    {gig.coverImage ? (
+                                        <img
+                                            src={assetUrl(gig.coverImage)}
+                                            alt={gig.title}
+                                        />
+                                    ) : (
+                                        <div className="seller-dash-light__gig-placeholder">
+                                            <ImagePlus />
                                         </div>
-                                    </div>
-
-                                    {/* Gig Info */}
-                                    <div className="seller-dash-light__gig-body">
-                                        <div className="seller-dash-light__gig-category">
-                                            <Tag />
-                                            <span>{gig.category}</span>
-                                        </div>
-                                        <h3 className="seller-dash-light__gig-title">
-                                            {gig.title}
-                                        </h3>
-                                        <div className="seller-dash-light__gig-delivery">
-                                            <Clock />
-                                            <span>{gig.deliveryTime}</span>
-                                        </div>
+                                    )}
+                                    {/* Price badge */}
+                                    <div className="seller-dash-light__gig-price">
+                                        LKR {Number(gig.price)?.toLocaleString()}
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+
+                                {/* Gig Info */}
+                                <div className="seller-dash-light__gig-body">
+                                    <div className="seller-dash-light__gig-category">
+                                        <Tag />
+                                        <span>{gig.category}</span>
+                                    </div>
+                                    <h3 className="seller-dash-light__gig-title">
+                                        {gig.title}
+                                    </h3>
+                                    <div className="seller-dash-light__gig-delivery">
+                                        <Clock />
+                                        <span>{gig.deliveryTime}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
