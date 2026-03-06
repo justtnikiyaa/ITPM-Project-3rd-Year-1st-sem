@@ -595,8 +595,8 @@ const SellerDashboard = () => {
                                         </div>
                                     )}
                                     {/* Price badge */}
-                                    <div className="seller-dash-light__gig-price gradient-text">
-                                        LKR {gig.price?.toLocaleString()}
+                                    <div className="seller-dash-light__gig-price">
+                                        LKR {Number(gig.price)?.toLocaleString()}
                                     </div>
                                 </div>
 
