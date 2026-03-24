@@ -46,6 +46,9 @@ const Navbar = () => {
                                     Seller Dashboard
                                 </Link>
                             )}
+                            <Link to="/profile/me" className="navbar-link">
+                                My Profile
+                            </Link>
 
                             {/* User info */}
                             <div className="navbar-user">
@@ -107,6 +110,9 @@ const Navbar = () => {
                                     Seller Dashboard
                                 </Link>
                             )}
+                            <Link to="/profile/me" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
+                                My Profile
+                            </Link>
                             <button onClick={() => { handleLogout(); setMobileOpen(false); }} className="navbar-mobile-link navbar-mobile-link--logout">
                                 Logout
                             </button>

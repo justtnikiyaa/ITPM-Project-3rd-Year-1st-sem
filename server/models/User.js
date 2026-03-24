@@ -43,6 +43,29 @@ const userSchema = new mongoose.Schema(
     otpExpires: {
       type: Date,
     },
+    profileImage: {
+      type: String,
+      default: '',
+    },
+    bio: {
+      type: String,
+      default: '',
+      maxlength: 500,
+    },
+    skills: {
+      type: [String],
+      default: [],
+    },
+    portfolioSummary: {
+      type: String,
+      default: '',
+      maxlength: 300,
+    },
+    budgetPreference: {
+      type: String,
+      default: '',
+      maxlength: 120,
+    },
   },
   { timestamps: true }
 );
