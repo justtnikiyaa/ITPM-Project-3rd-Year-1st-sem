@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
     Clock,
@@ -20,6 +20,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const ServiceDetails = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [service, setService] = useState(null);
     const [sellerStats, setSellerStats] = useState({
         averageRating: 0,
@@ -197,7 +198,10 @@ const ServiceDetails = () => {
                                     </div>
                                 </div>
 
-                                <button className="w-full btn-primary py-5 rounded-[1.5rem] flex items-center justify-center gap-3 group text-xl mb-5 shadow-xl shadow-indigo-200">
+                                <button 
+                                    onClick={() => navigate(`/checkout/${id}`)}
+                                    className="w-full btn-primary py-5 rounded-[1.5rem] flex items-center justify-center gap-3 group text-xl mb-5 shadow-xl shadow-indigo-200"
+                                >
                                     <ShoppingCart className="w-6 h-6 group-hover:scale-110 transition-transform" />
                                     Order Now
                                 </button>

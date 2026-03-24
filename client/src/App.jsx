@@ -13,6 +13,7 @@ import UserProfilePage from './pages/UserProfilePage';
 import EditProfilePage from './pages/EditProfilePage';
 import SellerPortfolioPage from './pages/SellerPortfolioPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import Checkout from './pages/Checkout';
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
           <Route path="/profile/me" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
           <Route path="/profile/edit" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
           <Route path="/portfolio/:sellerId" element={<SellerPortfolioPage />} />
+          <Route path="/checkout/:id" element={<Checkout />} />
         </Routes>
       </Router>
     </AuthProvider>
