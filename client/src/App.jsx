@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import VerifyEmail from './pages/VerifyEmail';
 import SellerDashboard from './pages/SellerDashboard';
 import ServiceDetails from './pages/ServiceDetails';
+import Checkout from './pages/Checkout';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/dashboard" element={<SellerDashboard />} />
           <Route path="/service/:id" element={<ServiceDetails />} />
+          <Route path="/checkout/:id" element={<Checkout />} />
         </Routes>
       </Router>
     </AuthProvider>
