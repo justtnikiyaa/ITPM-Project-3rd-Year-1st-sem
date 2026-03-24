@@ -9,11 +9,22 @@ const generateOTP = () => {
 
 // Send OTP email helper
 const sendOTPEmail = async (email, otp, name) => {
-    const mailOptions = {
-        from: `"UniGig" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject: 'Verify your UniGig account',
-        html: `
+    const plainTextContent = `
+Hi ${name},
+
+Use the following code to verify your email address:
+
+${otp}
+
+This code expires in 10 minutes.
+
+If you didn't create a UniGig account, you can safely ignore this email.
+
+Best regards,
+UniGig Team
+    `;
+
+    const htmlContent = `
       <div style="font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8f9fa; border-radius: 16px;">
         <div style="text-align: center; margin-bottom: 24px;">
           <h1 style="color: #6C63FF; margin: 0; font-size: 28px;">UniGig</h1>
@@ -23,7 +34,7 @@ const sendOTPEmail = async (email, otp, name) => {
           <p style="color: #333; font-size: 16px; margin-top: 0;">Hi <strong>${name}</strong>,</p>
           <p style="color: #555; line-height: 1.6;">Use the following code to verify your email address:</p>
           <div style="text-align: center; margin: 24px 0;">
-            <div style="display: inline-block; background: linear-gradient(135deg, #6C63FF, #5A52D5); color: white; font-size: 32px; font-weight: 800; letter-spacing: 8px; padding: 16px 32px; border-radius: 12px;">
+            <div style="display: inline-block; background: linear-gradient(135deg, #6C63FF, #5A52D5); color: white; font-size: 32px; font-weight: 800; letter-spacing: 8px; padding: 16px 32px; border-radius: 12px; font-family: monospace;">
               ${otp}
             </div>
           </div>
@@ -32,10 +43,38 @@ const sendOTPEmail = async (email, otp, name) => {
           <p style="color: #aaa; font-size: 12px; text-align: center; margin-bottom: 0;">If you didn't create a UniGig account, you can safely ignore this email.</p>
         </div>
       </div>
-    `,
+    `;
+
+    const mailOptions = {
+        from: `UniGig <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'UniGig - Verify Your Email Address',
+        text: plainTextContent.trim(),
+        html: htmlContent.trim(),
+        headers: {
+            'X-Mailer': 'UniGig',
+            'X-Priority': '3',
+            'Importance': 'normal',
+        },
     };
 
-    await transporter.sendMail(mailOptions);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ OTP email sent successfully:', {
+            to: email,
+            messageId: info.messageId,
+            timestamp: new Date().toISOString(),
+        });
+        return info;
+    } catch (error) {
+        console.error('❌ Failed to send OTP email:', {
+            to: email,
+            error: error.message,
+            code: error.code,
+            timestamp: new Date().toISOString(),
+        });
+        throw error;
+    }
 };
 
 // @desc    Send OTP to user email
@@ -64,12 +103,21 @@ const sendOtp = async (req, res) => {
         await user.save();
 
         // Send email
-        await sendOTPEmail(user.email, otp, user.name);
-
-        res.json({ message: 'OTP sent successfully' });
+        try {
+            await sendOTPEmail(user.email, otp, user.name);
+            console.log('📧 OTP sent to:', user.email);
+            res.json({ message: 'OTP sent successfully' });
+        } catch (emailError) {
+            console.error('📧 Email service error:', emailError.message);
+            // Still save the OTP but inform user of potential delay
+            res.status(500).json({ 
+                message: 'OTP generated but email delivery may be delayed. Check spam folder.',
+                details: emailError.message 
+            });
+        }
     } catch (error) {
-        console.error('Send OTP error:', error);
-        res.status(500).json({ message: 'Failed to send OTP' });
+        console.error('❌ Send OTP error:', error);
+        res.status(500).json({ message: 'Failed to send OTP', details: error.message });
     }
 };
 

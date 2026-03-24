@@ -245,8 +245,22 @@ const Home = () => {
                     ) : (
                         /* Service Cards Grid */
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {services.map((service, index) => (
-                                <div
+                            {services.map((service, index) => {
+                                const packagePrices = (service.packages || [])
+                                    .map((pkg) => Number(pkg?.price))
+                                    .filter((price) => Number.isFinite(price));
+                                const packageDeliveryDays = (service.packages || [])
+                                    .map((pkg) => Number(pkg?.deliveryDays))
+                                    .filter((days) => Number.isFinite(days) && days > 0);
+
+                                const cardPrice = Number(service.price) > 0
+                                    ? Number(service.price)
+                                    : (packagePrices.length ? Math.min(...packagePrices) : 0);
+                                const cardDelivery = service.deliveryTime || (packageDeliveryDays.length
+                                    ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}`
+                                    : '1 Week');
+
+                                return <div
                                     key={service._id}
                                     className="service-card animate-fade-in-up"
                                     style={{ animationDelay: `${index * 60}ms` }}
@@ -267,7 +281,7 @@ const Home = () => {
                                         )}
                                         {/* Price Badge */}
                                         <div className="service-card__price">
-                                            LKR {service.price?.toLocaleString()}
+                                            LKR {cardPrice.toLocaleString()}
                                         </div>
                                     </div>
 
@@ -298,12 +312,12 @@ const Home = () => {
                                             </div>
                                             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
                                                 <Clock className="w-3 h-3" />
-                                                <span className="text-[11px]">{service.deliveryTime}</span>
+                                                <span className="text-[11px]">{cardDelivery}</span>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                </div>;
+                            })}
                         </div>
                     )}
                 </div>

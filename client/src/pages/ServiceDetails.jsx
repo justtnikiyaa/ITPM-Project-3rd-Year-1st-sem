@@ -77,6 +77,24 @@ const ServiceDetails = () => {
         );
     }
 
+    const packagePrices = (service.packages || [])
+        .map((pkg) => Number(pkg?.price))
+        .filter((price) => Number.isFinite(price));
+    const packageDeliveryDays = (service.packages || [])
+        .map((pkg) => Number(pkg?.deliveryDays))
+        .filter((days) => Number.isFinite(days) && days > 0);
+
+    const displayPrice = Number(service.price) > 0
+        ? Number(service.price)
+        : (packagePrices.length ? Math.min(...packagePrices) : 0);
+    const fallbackDelivery = packageDeliveryDays.length ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}` : '1 Week';
+    const displayDeliveryTime = service.deliveryTime || fallbackDelivery;
+    const displayDescription =
+        service.description ||
+        service.shortDescription ||
+        service.packages?.[0]?.description ||
+        'No description provided by the seller yet.';
+
     return (
         <div className="home-page-light min-h-screen pt-28 pb-20">
             {/* Background Glows */}
@@ -125,7 +143,7 @@ const ServiceDetails = () => {
                                 About this Service
                             </h2>
                             <div className="prose prose-lg prose-indigo max-w-none text-gray-700 leading-relaxed font-medium">
-                                {service.description.split('\n').map((para, i) => (
+                                {displayDescription.split('\n').map((para, i) => (
                                     <p key={i} className="mb-4">{para}</p>
                                 ))}
                             </div>
@@ -162,7 +180,7 @@ const ServiceDetails = () => {
                                 <div className="flex justify-between items-center mb-8">
                                     <div>
                                         <h3 className="text-4xl font-black text-gray-900 tracking-tight">
-                                            LKR {service.price.toLocaleString()}
+                                            LKR {displayPrice.toLocaleString()}
                                         </h3>
                                         <p className="text-sm text-indigo-500 font-black uppercase tracking-widest mt-1">Starting Price</p>
                                     </div>
@@ -184,7 +202,7 @@ const ServiceDetails = () => {
                                         </div>
                                         <div>
                                             <p className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Delivery Time</p>
-                                            <p className="text-sm font-bold text-gray-900">{service.deliveryTime}</p>
+                                            <p className="text-sm font-bold text-gray-900">{displayDeliveryTime}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 text-gray-700">

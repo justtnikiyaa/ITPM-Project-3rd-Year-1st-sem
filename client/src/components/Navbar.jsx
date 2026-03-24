@@ -27,28 +27,37 @@ const Navbar = () => {
                 <div className="navbar-links">
                     {user ? (
                         <>
-                            {/* Post a Gig — only for student sellers */}
-                            {user.isStudentSeller && (
-                                <Link to="/dashboard" className="navbar-btn-primary">
-                                    <svg
-                                        className="navbar-btn-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-                                        />
-                                    </svg>
-                                    Seller Dashboard
-                                </Link>
+                            {/* Only show if user is verified */}
+                            {user.isVerified ? (
+                                <>
+                                    {/* Post a Gig — only for student sellers */}
+                                    {user.isStudentSeller && (
+                                        <Link to="/dashboard" className="navbar-btn-primary">
+                                            <svg
+                                                className="navbar-btn-icon"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                                />
+                                            </svg>
+                                            Seller Dashboard
+                                        </Link>
+                                    )}
+                                    <Link to="/profile/me" className="navbar-link">
+                                        My Profile
+                                    </Link>
+                                </>
+                            ) : (
+                                <span className="navbar-link navbar-link--muted">
+                                    Verify Email to Continue
+                                </span>
                             )}
-                            <Link to="/profile/me" className="navbar-link">
-                                My Profile
-                            </Link>
 
                             {/* User info */}
                             <div className="navbar-user">
@@ -105,14 +114,22 @@ const Navbar = () => {
                 <div className="navbar-mobile-menu">
                     {user ? (
                         <>
-                            {user.isStudentSeller && (
-                                <Link to="/dashboard" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
-                                    Seller Dashboard
-                                </Link>
+                            {user.isVerified ? (
+                                <>
+                                    {user.isStudentSeller && (
+                                        <Link to="/dashboard" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
+                                            Seller Dashboard
+                                        </Link>
+                                    )}
+                                    <Link to="/profile/me" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
+                                        My Profile
+                                    </Link>
+                                </>
+                            ) : (
+                                <span className="navbar-mobile-link navbar-mobile-link--muted">
+                                    Verify Email to Continue
+                                </span>
                             )}
-                            <Link to="/profile/me" className="navbar-mobile-link" onClick={() => setMobileOpen(false)}>
-                                My Profile
-                            </Link>
                             <button onClick={() => { handleLogout(); setMobileOpen(false); }} className="navbar-mobile-link navbar-mobile-link--logout">
                                 Logout
                             </button>

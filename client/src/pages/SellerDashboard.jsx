@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import CreateGigForm from '../components/CreateGigForm';
 import {
     Plus,
+    Edit3,
     Upload,
     ImagePlus,
     X,
@@ -13,7 +15,6 @@ import {
     LayoutDashboard,
     Zap,
     Moon,
-    Edit3,
     Trash2,
     Wallet,
 } from 'lucide-react';
@@ -24,8 +25,20 @@ import {
 // and can result in intermittent 401/Network errors when returning to
 // the dashboard. keep paths relative and let the proxy handle the host.
 const API_BASE = import.meta.env.VITE_API_URL || ''; // leave blank for relative paths
-// helper to create full url for assets (falls back to same origin)
-const assetUrl = (path) => `${API_BASE}${path}`;
+const ASSET_BASE = (API_BASE.replace(/\/api\/?$/, '') || import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '');
+// helper to create full url for assets from backend uploads
+const assetUrl = (rawPath) => {
+    if (!rawPath) return '';
+
+    if (/^https?:\/\//i.test(rawPath)) {
+        return rawPath;
+    }
+
+    const normalized = String(rawPath).replace(/\\/g, '/');
+    const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
+
+    return `${ASSET_BASE}${withLeadingSlash}`;
+};
 
 
 const SellerDashboard = () => {
@@ -34,30 +47,18 @@ const SellerDashboard = () => {
 
     const [gigs, setGigs] = useState([]);
     const [showForm, setShowForm] = useState(false);
+    const [editingGig, setEditingGig] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [editingGig, setEditingGig] = useState(null); // gig object being edited
-    const [deletingIds, setDeletingIds] = useState([]); // track ids being deleted
+    const [deletingIds, setDeletingIds] = useState([]);
     const [earnings, setEarnings] = useState({
         totalEarnings: 0,
         monthlyEarnings: 0,
         pendingPayments: 0,
         currency: 'LKR',
     });
-
-    // Form state
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [category, setCategory] = useState('');
-    const [price, setPrice] = useState('');
-    const [deliveryTime, setDeliveryTime] = useState('');
-    const [coverImage, setCoverImage] = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const dropzoneRef = useRef(null);
 
     // Redirect non-sellers
     useEffect(() => {
@@ -71,16 +72,12 @@ const SellerDashboard = () => {
         try {
             setError('');
             setLoading(true);
-            // make the request with a relative URL so that the dev proxy
-            // adds the correct host and no cross‑origin preflight is required
             const res = await axios.get('/api/services/my');
             setGigs(res.data);
             console.log(`Loaded ${res.data.length} gigs`);
         } catch (err) {
             console.error('Failed to load gigs:', err.response || err.message || err);
             const message = err.response?.data?.message;
-            // if the backend returned 404 because route was mis‑ordered we
-            // want to show empty state rather than a scary banner
             if (err.response?.status === 404 && message === 'Service not found') {
                 setGigs([]);
                 setError('');
@@ -111,6 +108,19 @@ const SellerDashboard = () => {
         if (user?.isStudentSeller) fetchEarnings();
     }, [user, fetchEarnings]);
 
+    // Hide the navbar while the create gig modal is open to maximize viewport space.
+    useEffect(() => {
+        if (showForm) {
+            document.body.classList.add('seller-modal-open');
+        } else {
+            document.body.classList.remove('seller-modal-open');
+        }
+
+        return () => {
+            document.body.classList.remove('seller-modal-open');
+        };
+    }, [showForm]);
+
     // Toggle availability
     const handleToggleAvailability = async () => {
         setToggling(true);
@@ -122,114 +132,6 @@ const SellerDashboard = () => {
         } finally {
             setToggling(false);
         }
-    };
-
-    // Image handling
-    const handleImageSelect = useCallback((file) => {
-        if (file && file.type.startsWith('image/')) {
-            setCoverImage(file);
-            const reader = new FileReader();
-            reader.onload = (e) => setImagePreview(e.target.result);
-            reader.readAsDataURL(file);
-        }
-    }, []);
-
-    const handleDragOver = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-    }, []);
-
-    const handleDragLeave = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-    }, []);
-
-    const handleDrop = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        const file = e.dataTransfer.files[0];
-        handleImageSelect(file);
-    }, [handleImageSelect]);
-
-    const removeImage = () => {
-        setCoverImage(null);
-        setImagePreview(null);
-    };
-
-    // Submit new gig or update existing one
-    const handleSubmitGig = async (e) => {
-        e.preventDefault();
-        setError('');
-        setSuccess('');
-        setSubmitting(true);
-
-        try {
-            const formData = new FormData();
-            formData.append('title', title);
-            formData.append('description', description);
-            formData.append('category', category);
-            formData.append('price', price);
-            formData.append('deliveryTime', deliveryTime);
-            if (coverImage) formData.append('coverImage', coverImage);
-
-            let res;
-            if (editingGig) {
-                // update existing
-                res = await axios.patch(
-                    `/api/services/${editingGig._id}`,
-                    formData,
-                    {
-                        headers: { 'Content-Type': 'multipart/form-data' },
-                    }
-                );
-                // replace gig in list
-                setGigs((prev) =>
-                    prev.map((g) => (g._id === editingGig._id ? res.data : g))
-                );
-                setSuccess('Gig updated successfully! 🎉');
-            } else {
-                res = await axios.post('/api/services', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-                setGigs([res.data, ...gigs]);
-                setSuccess('Gig posted successfully! 🎉');
-            }
-
-            // reset form state
-            setTitle('');
-            setDescription('');
-            setCategory('');
-            setPrice('');
-            setDeliveryTime('');
-            setCoverImage(null);
-            setImagePreview(null);
-            setShowForm(false);
-            setEditingGig(null);
-        } catch (err) {
-            setError(
-                err.response?.data?.message ||
-                (editingGig ? 'Failed to update gig' : 'Failed to create gig')
-            );
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    // Populate form with gig data for editing
-    const handleEdit = (gig) => {
-        setEditingGig(gig);
-        setTitle(gig.title);
-        setDescription(gig.description);
-        setCategory(gig.category);
-        setPrice(gig.price);
-        setDeliveryTime(gig.deliveryTime);
-        setImagePreview(gig.coverImage ? assetUrl(gig.coverImage) : null);
-        setCoverImage(null); // will only upload new image if user selects one
-        setShowForm(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     // Delete a gig
@@ -245,6 +147,34 @@ const SellerDashboard = () => {
         } finally {
             setDeletingIds((prev) => prev.filter((id) => id !== gigId));
         }
+    };
+
+    // Handle successful gig creation
+    const handleGigSaved = (savedGig) => {
+        if (editingGig?._id) {
+            setGigs((prev) => prev.map((gig) => (gig._id === savedGig._id ? savedGig : gig)));
+        } else {
+            setGigs((prev) => [savedGig, ...prev]);
+        }
+        setEditingGig(null);
+        setShowForm(false);
+        setSuccess(editingGig?._id ? '✅ Gig updated successfully!' : '✅ Gig created successfully!');
+        setTimeout(() => setSuccess(''), 3000);
+    };
+
+    const handleOpenCreate = () => {
+        setEditingGig(null);
+        setShowForm(true);
+    };
+
+    const handleOpenEdit = (gig) => {
+        setEditingGig(gig);
+        setShowForm(true);
+    };
+
+    const handleCloseForm = () => {
+        setShowForm(false);
+        setEditingGig(null);
     };
 
     if (!user?.isStudentSeller) return null;
@@ -310,7 +240,7 @@ const SellerDashboard = () => {
 
                         {/* ── New Gig Button ── */}
                         <button
-                            onClick={() => setShowForm(!showForm)}
+                            onClick={handleOpenCreate}
                             className="seller-dash-light__new-btn"
                         >
                             <Plus />
@@ -354,204 +284,23 @@ const SellerDashboard = () => {
                     </div>
                 )}
 
-                {/* ═══ New Gig Form ═══ */}
+                {/* ═══ Modal Form ═══ */}
                 {showForm && (
-                    <div className="seller-dash-light__form-card animate-fade-in-up">
-                        <h2 className="seller-dash-light__form-title">
-                            <Sparkles />
-                            Create a New <span className="gradient-text">Gig</span>
-                        </h2>
-                        <form onSubmit={handleSubmitGig} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {/* Title */}
-                            <div className="md:col-span-2">
-                                <label className="seller-dash-light__label">
-                                    Gig Title
-                                </label>
-                                <input
-                                    type="text"
-                                    className="seller-dash-light__input"
-                                    placeholder="I will design a stunning logo..."
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    required
-                                />
-                            </div>
-
-                            {/* Description */}
-                            <div className="md:col-span-2">
-                                <label className="seller-dash-light__label">
-                                    Description
-                                </label>
-                                <textarea
-                                    className="seller-dash-light__input"
-                                    style={{ minHeight: '120px', resize: 'vertical' }}
-                                    placeholder="Describe what you're offering in detail..."
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    required
-                                />
-                            </div>
-
-                            {/* Category */}
-                            <div>
-                                <label className="seller-dash-light__label">
-                                    Category
-                                </label>
-                                <select
-                                    className="seller-dash-light__input"
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    required
-                                >
-                                    <option value="">Select a category</option>
-                                    <option value="Web Development">Web Development</option>
-                                    <option value="Graphic Design">Graphic Design</option>
-                                    <option value="Content Writing">Content Writing</option>
-                                    <option value="Video Editing">Video Editing</option>
-                                    <option value="Data Entry">Data Entry</option>
-                                    <option value="Tutoring">Tutoring</option>
-                                    <option value="Translation">Translation</option>
-                                    <option value="AI & Machine Learning">AI & Machine Learning</option>
-                                    <option value="Mobile App Dev">Mobile App Dev</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-
-                            {/* Price */}
-                            <div>
-                                <label className="seller-dash-light__label">
-                                    Price (LKR)
-                                </label>
-                                <input
-                                    type="number"
-                                    className="seller-dash-light__input"
-                                    placeholder="5000"
-                                    min="1"
-                                    value={price}
-                                    onChange={(e) => setPrice(e.target.value)}
-                                    required
-                                />
-                            </div>
-
-                            {/* Delivery Time */}
-                            <div>
-                                <label className="seller-dash-light__label">
-                                    Delivery Time
-                                </label>
-                                <select
-                                    className="seller-dash-light__input"
-                                    value={deliveryTime}
-                                    onChange={(e) => setDeliveryTime(e.target.value)}
-                                    required
-                                >
-                                    <option value="">Select delivery time</option>
-                                    <option value="1 Day">1 Day</option>
-                                    <option value="2-3 Days">2-3 Days</option>
-                                    <option value="3-5 Days">3-5 Days</option>
-                                    <option value="1 Week">1 Week</option>
-                                    <option value="2 Weeks">2 Weeks</option>
-                                    <option value="1 Month">1 Month</option>
-                                </select>
-                            </div>
-
-                            {/* ── Cover Image Dropzone ── */}
-                            <div className="md:col-span-2">
-                                <label className="seller-dash-light__label">
-                                    Cover Image
-                                </label>
-
-                                {imagePreview ? (
-                                    <div className="seller-dash-light__img-preview">
-                                        <img
-                                            src={imagePreview}
-                                            alt="Cover preview"
-                                        />
-                                        <div className="seller-dash-light__img-overlay">
-                                            <button
-                                                type="button"
-                                                onClick={removeImage}
-                                                className="seller-dash-light__img-remove"
-                                            >
-                                                <X />
-                                                Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div
-                                        ref={dropzoneRef}
-                                        onDragOver={handleDragOver}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={handleDrop}
-                                        onClick={() => {
-                                            const input = document.createElement('input');
-                                            input.type = 'file';
-                                            input.accept = 'image/*';
-                                            input.onchange = (e) => handleImageSelect(e.target.files[0]);
-                                            input.click();
-                                        }}
-                                        className={`dropzone-area ${isDragging ? 'dropzone-area--active' : ''}`}
-                                    >
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                                            <div style={{
-                                                width: '56px',
-                                                height: '56px',
-                                                borderRadius: '16px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transition: 'all 0.3s ease',
-                                                background: isDragging ? 'var(--color-primary)' : 'rgba(108, 99, 255, 0.08)',
-                                                transform: isDragging ? 'scale(1.1)' : 'scale(1)',
-                                            }}>
-                                                {isDragging ? (
-                                                    <Upload style={{ width: '24px', height: '24px', color: 'white' }} />
-                                                ) : (
-                                                    <ImagePlus style={{ width: '24px', height: '24px', color: 'var(--color-primary)' }} />
-                                                )}
-                                            </div>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <p className="text-sm" style={{ fontWeight: 600, color: '#444' }}>
-                                                    {isDragging ? 'Drop your image here' : 'Drag & drop your cover image'}
-                                                </p>
-                                                <p className="text-xs" style={{ color: '#999', marginTop: '4px' }}>
-                                                    or click to browse · PNG, JPG, WebP · Max 5MB
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="md:col-span-2" style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="seller-dash-light__submit-btn"
-                                >
-                                    {submitting ? (
-                                        'Publishing...'
-                                    ) : (
-                                        <>
-                                            <Sparkles />
-                                            Publish Gig
-                                        </>
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowForm(false);
-                                        removeImage();
-                                        setEditingGig(null);
-                                    }}
-                                    className="seller-dash-light__cancel-btn"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
+                    <div className="seller-modal-overlay">
+                        <div className="seller-modal-content">
+                            <button
+                                type="button"
+                                onClick={handleCloseForm}
+                                className="seller-modal-close"
+                            >
+                                <X size={24} />
+                            </button>
+                            <CreateGigForm
+                                onSuccess={handleGigSaved}
+                                onCancel={handleCloseForm}
+                                initialGig={editingGig}
+                            />
+                        </div>
                     </div>
                 )}
 
@@ -590,7 +339,7 @@ const SellerDashboard = () => {
                         <h3>No gigs yet</h3>
                         <p>Create your first gig and start earning!</p>
                         <button
-                            onClick={() => setShowForm(true)}
+                            onClick={handleOpenCreate}
                             className="seller-dash-light__empty-btn"
                         >
                             <Plus />
@@ -599,8 +348,22 @@ const SellerDashboard = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {gigs.map((gig, index) => (
-                            <div
+                        {gigs.map((gig, index) => {
+                            const packagePrices = (gig.packages || [])
+                                .map((pkg) => Number(pkg?.price))
+                                .filter((price) => Number.isFinite(price));
+                            const packageDeliveryDays = (gig.packages || [])
+                                .map((pkg) => Number(pkg?.deliveryDays))
+                                .filter((days) => Number.isFinite(days) && days > 0);
+
+                            const gigPrice = Number(gig.price) > 0
+                                ? Number(gig.price)
+                                : (packagePrices.length ? Math.min(...packagePrices) : 0);
+                            const gigDelivery = gig.deliveryTime || (packageDeliveryDays.length
+                                ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}`
+                                : '1 Week');
+
+                            return <div
                                 key={gig._id}
                                 className="seller-dash-light__gig-card animate-fade-in-up"
                                 style={{ animationDelay: `${index * 80}ms`, position: 'relative' }}
@@ -608,11 +371,11 @@ const SellerDashboard = () => {
                                 {/* edit/delete actions */}
                                 <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '6px', zIndex: 10 }}>
                                     <button
-                                        onClick={() => handleEdit(gig)}
+                                        onClick={() => handleOpenEdit(gig)}
                                         style={{ padding: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.9)', border: '1px solid #ddd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         title="Edit gig"
                                     >
-                                        <Edit3 size={16} />
+                                        <Edit3 size={16} color="#5b4fff" />
                                     </button>
                                     <button
                                         onClick={() => handleDelete(gig._id)}
@@ -637,7 +400,7 @@ const SellerDashboard = () => {
                                     )}
                                     {/* Price badge */}
                                     <div className="seller-dash-light__gig-price">
-                                        LKR {Number(gig.price)?.toLocaleString()}
+                                        LKR {gigPrice.toLocaleString()}
                                     </div>
                                 </div>
 
@@ -652,11 +415,11 @@ const SellerDashboard = () => {
                                     </h3>
                                     <div className="seller-dash-light__gig-delivery">
                                         <Clock />
-                                        <span>{gig.deliveryTime}</span>
+                                        <span>{gigDelivery}</span>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            </div>;
+                        })}
                     </div>
                 )}
             </div>
