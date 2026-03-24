@@ -9,6 +9,10 @@ import Login from './pages/Login';
 import VerifyEmail from './pages/VerifyEmail';
 import SellerDashboard from './pages/SellerDashboard';
 import ServiceDetails from './pages/ServiceDetails';
+import UserProfilePage from './pages/UserProfilePage';
+import EditProfilePage from './pages/EditProfilePage';
+import SellerPortfolioPage from './pages/SellerPortfolioPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import Checkout from './pages/Checkout';
 
 function App() {
@@ -25,6 +29,9 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/dashboard" element={<SellerDashboard />} />
           <Route path="/service/:id" element={<ServiceDetails />} />
+          <Route path="/profile/me" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
+          <Route path="/profile/edit" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
+          <Route path="/portfolio/:sellerId" element={<SellerPortfolioPage />} />
           <Route path="/checkout/:id" element={<Checkout />} />
         </Routes>
       </Router>
