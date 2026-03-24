@@ -22,6 +22,11 @@ const ServiceDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [service, setService] = useState(null);
+    const [sellerStats, setSellerStats] = useState({
+        averageRating: 0,
+        totalReviews: 0,
+        totalCompletedProjects: 0,
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -30,6 +35,12 @@ const ServiceDetails = () => {
             try {
                 const res = await axios.get(`/api/services/${id}`);
                 setService(res.data);
+                if (res.data?.seller?._id) {
+                    const statsRes = await axios.get(
+                        `/api/portfolio/seller/${res.data.seller._id}/rating-summary`
+                    );
+                    setSellerStats(statsRes.data);
+                }
                 setLoading(false);
             } catch (err) {
                 console.error('Fetch service error:', err);
@@ -158,9 +169,11 @@ const ServiceDetails = () => {
                                     <div className="flex flex-col items-end">
                                         <div className="flex items-center gap-1.5 text-amber-500 font-black bg-amber-50 px-4 py-1.5 rounded-full text-sm shadow-sm">
                                             <Star className="w-4 h-4 fill-current" />
-                                            4.9
+                                            {Number(sellerStats.averageRating || 0).toFixed(1)}
                                         </div>
-                                        <span className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">12 Orders done</span>
+                                        <span className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">
+                                            {sellerStats.totalCompletedProjects || 0} Orders done
+                                        </span>
                                     </div>
                                 </div>
 
@@ -237,7 +250,7 @@ const ServiceDetails = () => {
                                 </div>
 
                                 <Link
-                                    to={`/profile/${service.seller?._id}`}
+                                    to={`/portfolio/${service.seller?._id}`}
                                     className="w-full mt-10 py-4 rounded-2xl bg-gray-50 flex items-center justify-center text-indigo-600 font-black text-sm hover:bg-gray-100 transition-all border border-gray-100"
                                 >
                                     View Seller Portfolio

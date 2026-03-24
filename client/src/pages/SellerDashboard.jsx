@@ -15,6 +15,7 @@ import {
     Moon,
     Edit3,
     Trash2,
+    Wallet,
 } from 'lucide-react';
 
 // we rely on Vite's dev server proxy so that all `/api` requests
@@ -40,6 +41,12 @@ const SellerDashboard = () => {
     const [success, setSuccess] = useState('');
     const [editingGig, setEditingGig] = useState(null); // gig object being edited
     const [deletingIds, setDeletingIds] = useState([]); // track ids being deleted
+    const [earnings, setEarnings] = useState({
+        totalEarnings: 0,
+        monthlyEarnings: 0,
+        pendingPayments: 0,
+        currency: 'LKR',
+    });
 
     // Form state
     const [title, setTitle] = useState('');
@@ -90,6 +97,19 @@ const SellerDashboard = () => {
     useEffect(() => {
         if (user?.isStudentSeller) fetchGigs();
     }, [user, fetchGigs]);
+
+    const fetchEarnings = useCallback(async () => {
+        try {
+            const res = await axios.get('/api/portfolio/me/earnings');
+            setEarnings(res.data);
+        } catch (err) {
+            console.error('Failed to load earnings:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (user?.isStudentSeller) fetchEarnings();
+    }, [user, fetchEarnings]);
 
     // Toggle availability
     const handleToggleAvailability = async () => {
@@ -296,6 +316,27 @@ const SellerDashboard = () => {
                             <Plus />
                             Create New Gig
                         </button>
+                    </div>
+                </div>
+
+                <div className="seller-earnings-grid animate-fade-in-up">
+                    <div className="seller-earnings-card">
+                        <div className="seller-earnings-label"><Wallet size={16} />Total Earnings</div>
+                        <div className="seller-earnings-value">
+                            {earnings.currency} {Number(earnings.totalEarnings || 0).toLocaleString()}
+                        </div>
+                    </div>
+                    <div className="seller-earnings-card">
+                        <div className="seller-earnings-label"><Wallet size={16} />Monthly Earnings</div>
+                        <div className="seller-earnings-value">
+                            {earnings.currency} {Number(earnings.monthlyEarnings || 0).toLocaleString()}
+                        </div>
+                    </div>
+                    <div className="seller-earnings-card pending">
+                        <div className="seller-earnings-label"><Wallet size={16} />Pending Payments</div>
+                        <div className="seller-earnings-value">
+                            {earnings.currency} {Number(earnings.pendingPayments || 0).toLocaleString()}
+                        </div>
                     </div>
                 </div>
 
