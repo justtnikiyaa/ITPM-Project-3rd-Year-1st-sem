@@ -35,6 +35,7 @@ const normalizeService = (serviceDoc) => {
 // @desc    Create a new service/gig
 // @route   POST /api/services
 // @access  Private (Student Sellers only)
+// ✅ GIG SERVICE CREATION - VALIDATION STARTS HERE
 const createService = async (req, res) => {
     try {
         const {
@@ -51,12 +52,12 @@ const createService = async (req, res) => {
             rushDeliveryDays,
         } = req.body;
 
-        // Validate required fields
+        // ✅ VALIDATION 1: Verify required fields (title, description, category)
         if (!title || !description || !category) {
             return res.status(400).json({ message: 'Please fill in all required fields' });
         }
 
-        // Parse JSON strings if they come as strings
+        // ✅ VALIDATION 2: Parse JSON strings for packages, addons, requirements, tags
         let parsedPackages = packages;
         let parsedAddons = addons;
         let parsedRequirements = requirements;
@@ -75,7 +76,7 @@ const createService = async (req, res) => {
             parsedTags = JSON.parse(tags);
         }
 
-        // Validate packages
+        // ✅ VALIDATION 3: Ensure at least one pricing package is provided
         if (!parsedPackages || parsedPackages.length === 0) {
             return res.status(400).json({ message: 'At least one pricing package is required' });
         }
@@ -121,11 +122,13 @@ const createService = async (req, res) => {
 // @desc    Get all services (with search & availability filter)
 // @route   GET /api/services?search=&category=
 // @access  Public
+// ✅ HOME PAGE & SERVICE DISPLAY - FILTERED BY SELLER ACTIVE STATUS
 const getServices = async (req, res) => {
     try {
         const { search, category } = req.query;
         const filter = {};
 
+        // ✅ VALIDATION: Search filter - searches title, description, category
         if (search) {
             const regex = new RegExp(search, 'i');
             filter.$or = [
@@ -135,6 +138,7 @@ const getServices = async (req, res) => {
             ];
         }
 
+        // ✅ VALIDATION: Category filter
         if (category) {
             filter.category = category;
         }
@@ -143,7 +147,7 @@ const getServices = async (req, res) => {
             .populate('seller', 'name email universityDomain availability')
             .sort({ createdAt: -1 });
 
-        // Filter out services from "Away" sellers
+        // ✅ VALIDATION: Filter out services from 'Away' sellers (SELLER ACTIVE/NON-ACTIVE STATUS)
         const activeServices = services.filter(
             (s) => s.seller && s.seller.availability === 'Active'
         );
@@ -178,6 +182,7 @@ const getMyServices = async (req, res) => {
 // @desc    Get a single service by ID
 // @route   GET /api/services/:id
 // @access  Public
+// ✅ GIG DETAILS PAGE - SERVICE RETRIEVAL
 const getServiceById = async (req, res) => {
     try {
         const service = await Service.findById(req.params.id).populate(
@@ -185,6 +190,7 @@ const getServiceById = async (req, res) => {
             'name email universityDomain availability'
         );
 
+        // ✅ VALIDATION: Check if service exists before returning
         if (!service) {
             return res.status(404).json({ message: 'Service not found' });
         }

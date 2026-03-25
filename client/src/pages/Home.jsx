@@ -26,6 +26,7 @@ const categories = [
     { name: 'AI & Machine Learning', badge: 'NEW' },
 ];
 
+// ✅ HOME PAGE - DISPLAYS SERVICES & FILTERING
 const Home = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [services, setServices] = useState([]);
@@ -39,9 +40,11 @@ const Home = () => {
         fetchServices();
     }, []);
 
+    // ✅ VALIDATION: Search and category filtering with fetch
     const fetchServices = async (search = '', category = '') => {
         setLoadingServices(true);
         try {
+            // ✅ FILTER: Apply search and category filters to fetch from backend
             const params = new URLSearchParams();
             if (search) params.append('search', search);
             if (category) params.append('category', category);

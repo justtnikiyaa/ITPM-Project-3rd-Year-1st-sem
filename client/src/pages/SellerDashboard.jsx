@@ -121,11 +121,13 @@ const SellerDashboard = () => {
         };
     }, [showForm]);
 
-    // Toggle availability
+    // ✅ SELLER ACTIVE/NON-ACTIVE STATUS - TOGGLE HANDLER
     const handleToggleAvailability = async () => {
         setToggling(true);
         try {
+            // Call backend endpoint to toggle availability between 'Active' and 'Away'
             const res = await axios.patch('/api/users/availability');
+            // Update user context with new availability status
             updateUser({ ...user, availability: res.data.availability });
         } catch (err) {
             console.error('Toggle failed:', err);

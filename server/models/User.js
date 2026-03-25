@@ -3,11 +3,13 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
+    // ✅ VALIDATION: Name field - required and trimmed
     name: {
       type: String,
       required: [true, 'Name is required'],
       trim: true,
     },
+    // ✅ VALIDATION: Email field - required, unique, converted to lowercase
     email: {
       type: String,
       required: [true, 'Email is required'],
@@ -15,6 +17,7 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    // ✅ VALIDATION: Password field - required, minimum 6 characters
     password: {
       type: String,
       required: [true, 'Password is required'],
@@ -47,20 +50,24 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // ✅ VALIDATION: Bio - max 500 characters
     bio: {
       type: String,
       default: '',
       maxlength: 500,
     },
+    // ✅ VALIDATION: Skills array - seller profile field
     skills: {
       type: [String],
       default: [],
     },
+    // ✅ VALIDATION: Portfolio Summary - max 300 characters
     portfolioSummary: {
       type: String,
       default: '',
       maxlength: 300,
     },
+    // ✅ VALIDATION: Budget Preference - max 120 characters
     budgetPreference: {
       type: String,
       default: '',
@@ -70,7 +77,7 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Hash password before saving
+// ✅ VALIDATION: Hash password before saving (security middleware)
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);

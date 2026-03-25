@@ -18,6 +18,7 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// ✅ GIG DETAILS PAGE - DISPLAYS SERVICE INFORMATION
 const ServiceDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -33,9 +34,11 @@ const ServiceDetails = () => {
     useEffect(() => {
         const fetchService = async () => {
             try {
+                // ✅ RETRIEVE SERVICE: Fetch service by ID from backend
                 const res = await axios.get(`/api/services/${id}`);
                 setService(res.data);
                 if (res.data?.seller?._id) {
+                    // ✅ RETRIEVE SELLER STATS: Get rating summary for the seller
                     const statsRes = await axios.get(
                         `/api/portfolio/seller/${res.data.seller._id}/rating-summary`
                     );
@@ -67,6 +70,7 @@ const ServiceDetails = () => {
         return (
             <div className="home-page-light min-h-screen pt-32 flex items-center justify-center">
                 <div className="text-center p-8 glass-card max-w-md mx-4">
+                    {/* ✅ VALIDATION: Display error if service not found */}
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Service not found</h2>
                     <p className="text-gray-600 mb-6">{error || 'The service you are looking for might have been removed.'}</p>
                     <Link to="/" className="btn-primary inline-flex items-center gap-2">

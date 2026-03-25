@@ -1,17 +1,20 @@
 const mongoose = require('mongoose');
 
 const packageSchema = new mongoose.Schema({
+    // ✅ VALIDATION: Package name - must be one of 3 preset types (enum)
     name: {
         type: String,
         required: true,
         enum: ['Basic', 'Standard', 'Premium'],
     },
     description: String,
+    // ✅ VALIDATION: Price - required, minimum 0
     price: {
         type: Number,
         required: true,
         min: 0,
     },
+    // ✅ VALIDATION: Delivery Days - required, minimum 1 day
     deliveryDays: {
         type: Number,
         required: true,
@@ -54,21 +57,25 @@ const requirementSchema = new mongoose.Schema({
 
 const serviceSchema = new mongoose.Schema(
     {
+        // ✅ VALIDATION: Service Title - required field for gig creation
         title: {
             type: String,
             required: [true, 'Title is required'],
             trim: true,
         },
+        // ✅ VALIDATION: Service Description - required field
         description: {
             type: String,
             required: [true, 'Description is required'],
             trim: true,
         },
+        // ✅ VALIDATION: Short Description - optional, max 150 characters
         shortDescription: {
             type: String,
             default: '',
             maxlength: 150,
         },
+        // ✅ VALIDATION: Category - required field for service classification
         category: {
             type: String,
             required: [true, 'Category is required'],

@@ -32,6 +32,8 @@ const CATEGORIES = [
 
 const CreateGigForm = ({ onSuccess, onCancel, initialGig = null }) => {
     const isEditMode = Boolean(initialGig?._id);
+    // ✅ GIG SERVICE CREATION - FORM STATE & FIELDS
+    
     // Basic Info
     const [title, setTitle] = useState('');
     const [shortDescription, setShortDescription] = useState('');
@@ -223,12 +225,13 @@ const CreateGigForm = ({ onSuccess, onCancel, initialGig = null }) => {
         setError('');
         setSuccess('');
 
-        // Validation
+        // ✅ CLIENT-SIDE VALIDATION 1: Check required fields (title, description, category)
         if (!title.trim() || !description.trim() || !category) {
             setError('Please fill in all required fields');
             return;
         }
 
+        // ✅ CLIENT-SIDE VALIDATION 2: Ensure all packages have price and delivery days
         if (packages.some(p => !p.price || !p.deliveryDays)) {
             setError('All packages must have a price and delivery time');
             return;
