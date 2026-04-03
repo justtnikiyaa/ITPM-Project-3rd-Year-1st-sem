@@ -154,41 +154,17 @@ const getSellerEarnings = async (req, res) => {
             return res.status(403).json({ message: 'Only sellers can access earnings dashboard' });
         }
 
-        const sellerObjectId = new mongoose.Types.ObjectId(req.user._id);
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
 
-        const orders = await Order.aggregate([
-            { $match: { seller: sellerObjectId } },
-            {
-                $lookup: {
-                    from: 'services',
-                    localField: 'service',
-                    foreignField: '_id',
-                    as: 'serviceData',
-                },
-            },
-            {
-                $addFields: {
-                    orderAmount: {
-                        $ifNull: [{ $arrayElemAt: ['$serviceData.price', 0] }, 0],
-                    },
-                },
-            },
-            {
-                $project: {
-                    status: 1,
-                    orderAmount: 1,
-                    completedAt: 1,
-                    createdAt: 1,
-                },
-            },
-        ]);
+        const orders = await Order.find({ seller: req.user._id })
+            .select('status price completedAt createdAt')
+            .lean();
 
         const totalEarnings = orders
             .filter((order) => order.status === 'Completed')
-            .reduce((sum, order) => sum + Number(order.orderAmount || 0), 0);
+            .reduce((sum, order) => sum + Number(order.price || 0), 0);
 
         const monthlyEarnings = orders
             .filter(
@@ -196,11 +172,11 @@ const getSellerEarnings = async (req, res) => {
                     order.status === 'Completed' &&
                     new Date(order.completedAt || order.createdAt) >= startOfMonth
             )
-            .reduce((sum, order) => sum + Number(order.orderAmount || 0), 0);
+            .reduce((sum, order) => sum + Number(order.price || 0), 0);
 
         const pendingPayments = orders
             .filter((order) => ['Pending', 'In Progress'].includes(order.status))
-            .reduce((sum, order) => sum + Number(order.orderAmount || 0), 0);
+            .reduce((sum, order) => sum + Number(order.price || 0), 0);
 
         res.json({
             totalEarnings,

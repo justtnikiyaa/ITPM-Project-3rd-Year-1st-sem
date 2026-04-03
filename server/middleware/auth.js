@@ -41,4 +41,13 @@ const requireStudent = (req, res, next) => {
     next();
 };
 
-module.exports = { protect, requireStudent };
+const requireBuyer = (req, res, next) => {
+    if (!req.user || req.user.isStudentSeller === true) {
+        return res.status(403).json({
+            message: 'Only buyers can perform this action',
+        });
+    }
+    next();
+};
+
+module.exports = { protect, requireStudent, requireBuyer };
