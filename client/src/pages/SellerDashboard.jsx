@@ -11,6 +11,7 @@ import {
     CheckCircle2,
     CircleDollarSign,
     Eye,
+    ImagePlus as ImagePlusIcon,
     Plus,
     Edit3,
     ImagePlus,
@@ -82,6 +83,9 @@ const SellerDashboard = () => {
     const [ordersLoading, setOrdersLoading] = useState(true);
     const [updatingOrderId, setUpdatingOrderId] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [deliveryNote, setDeliveryNote] = useState('');
+    const [deliveryImageFile, setDeliveryImageFile] = useState(null);
+    const [deliveringOrderId, setDeliveringOrderId] = useState('');
     const [earnings, setEarnings] = useState({
         totalEarnings: 0,
         monthlyEarnings: 0,
@@ -222,6 +226,12 @@ const SellerDashboard = () => {
         setShowForm(true);
     };
 
+    const handleOpenOrderDetails = (order) => {
+        setSelectedOrder(order);
+        setDeliveryNote(order.deliveryNote || '');
+        setDeliveryImageFile(null);
+    };
+
     const handleUpdateOrderStatus = async (orderId, status) => {
         try {
             setUpdatingOrderId(orderId);
@@ -245,12 +255,54 @@ const SellerDashboard = () => {
         setEditingGig(null);
     };
 
+    const handleCloseOrderDetails = () => {
+        setSelectedOrder(null);
+        setDeliveryNote('');
+        setDeliveryImageFile(null);
+    };
+
+    const handleDeliverOrder = async () => {
+        if (!selectedOrder) return;
+        if (!deliveryImageFile) {
+            setError('Please upload a demo image before delivering the order.');
+            return;
+        }
+
+        try {
+            setDeliveringOrderId(selectedOrder._id);
+            setError('');
+
+            const payload = new FormData();
+            payload.append('deliveryNote', deliveryNote.trim());
+            payload.append('deliveryImage', deliveryImageFile);
+
+            const res = await axios.patch(`/api/orders/${selectedOrder._id}/deliver`, payload, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+
+            setIncomingOrders((prev) =>
+                prev.map((order) => (order._id === selectedOrder._id ? res.data.order : order))
+            );
+            setSelectedOrder(res.data.order);
+            setSuccess('Work delivered successfully. Buyer can now confirm the delivery.');
+            setTimeout(() => setSuccess(''), 2500);
+            setDeliveryImageFile(null);
+            fetchEarnings();
+        } catch (err) {
+            console.error('Failed to deliver order:', err);
+            setError(err.response?.data?.message || 'Failed to deliver order.');
+        } finally {
+            setDeliveringOrderId('');
+        }
+    };
+
     if (!user?.isStudentSeller) return null;
 
     const isActive = user?.availability === 'Active';
     const statusClasses = {
         Pending: 'bg-amber-50 text-amber-700 border-amber-200',
         'In Progress': 'bg-blue-50 text-blue-700 border-blue-200',
+        Delivered: 'bg-violet-50 text-violet-700 border-violet-200',
         Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
     };
@@ -559,20 +611,30 @@ const SellerDashboard = () => {
                                                 Keep the buyer informed as you work through this order.
                                             </p>
                                         </div>
-                                        <select
-                                            value={order.status}
-                                            onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
-                                            disabled={updatingOrderId === order._id}
-                                            className="min-w-[170px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
-                                        >
-                                            {['Pending', 'In Progress', 'Completed', 'Cancelled'].map((status) => (
-                                                <option key={status} value={status}>{status}</option>
-                                            ))}
-                                        </select>
+                                        {['Delivered', 'Completed', 'Cancelled'].includes(order.status) ? (
+                                            <div className="min-w-[170px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+                                                {order.status === 'Delivered'
+                                                    ? 'Waiting for buyer'
+                                                    : order.status === 'Completed'
+                                                        ? 'Buyer confirmed'
+                                                        : 'Order cancelled'}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={order.status}
+                                                onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
+                                                disabled={updatingOrderId === order._id}
+                                                className="min-w-[170px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                                            >
+                                                {['Pending', 'In Progress', 'Cancelled'].map((status) => (
+                                                    <option key={status} value={status}>{status}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedOrder(order)}
+                                        onClick={() => handleOpenOrderDetails(order)}
                                         className="mt-4 inline-flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
                                     >
                                         <Eye className="w-4 h-4" />
@@ -605,14 +667,14 @@ const SellerDashboard = () => {
                 )}
 
                 {selectedOrder && (
-                    <div className="seller-modal-overlay seller-order-detail-overlay" onClick={() => setSelectedOrder(null)}>
+                    <div className="seller-modal-overlay seller-order-detail-overlay" onClick={handleCloseOrderDetails}>
                         <div
                             className="seller-modal-content seller-order-detail-modal"
                             onClick={(event) => event.stopPropagation()}
                         >
                             <button
                                 type="button"
-                                onClick={() => setSelectedOrder(null)}
+                                onClick={handleCloseOrderDetails}
                                 className="seller-modal-close"
                             >
                                 <X size={24} />
@@ -673,6 +735,121 @@ const SellerDashboard = () => {
                                     <p className="text-sm leading-7 text-slate-700 whitespace-pre-wrap">
                                         {selectedOrder.requirementsMessage || 'No buyer requirements were provided.'}
                                     </p>
+                                </div>
+
+                                <div className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-[0_10px_20px_rgba(15,23,42,0.04)] mt-6">
+                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+                                                Delivery Handoff
+                                            </p>
+                                            <h3 className="text-lg font-black text-slate-900">
+                                                {['Delivered', 'Completed'].includes(selectedOrder.status)
+                                                    ? 'Delivered Work Preview'
+                                                    : 'Send Demo To Buyer'}
+                                            </h3>
+                                        </div>
+                                        {selectedOrder.deliveredAt ? (
+                                            <span className="inline-flex items-center rounded-full border border-violet-100 bg-violet-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-violet-700">
+                                                Delivered {formatDate(selectedOrder.deliveredAt)}
+                                            </span>
+                                        ) : null}
+                                    </div>
+
+                                    {['Delivered', 'Completed'].includes(selectedOrder.status) ? (
+                                        <div className="space-y-5">
+                                            {selectedOrder.deliveredImage ? (
+                                                <div>
+                                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">
+                                                        Demo Image
+                                                    </p>
+                                                    <img
+                                                        src={assetUrl(selectedOrder.deliveredImage)}
+                                                        alt="Delivered work preview"
+                                                        className="w-full max-h-[320px] object-cover rounded-[20px] border border-slate-100"
+                                                    />
+                                                </div>
+                                            ) : null}
+
+                                            <div className="rounded-[20px] border border-violet-100 bg-violet-50/60 p-5">
+                                                <p className="text-xs font-bold uppercase tracking-wide text-violet-500 mb-2">
+                                                    Delivery Note
+                                                </p>
+                                                <p className="text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+                                                    {selectedOrder.deliveryNote || 'No delivery note was added for this order.'}
+                                                </p>
+                                            </div>
+
+                                            {selectedOrder.status === 'Completed' ? (
+                                                <div className="rounded-[20px] border border-emerald-100 bg-emerald-50/70 p-4 text-sm font-semibold text-emerald-700">
+                                                    The buyer has confirmed this delivery, so the order is now completed.
+                                                </div>
+                                            ) : (
+                                                <div className="rounded-[20px] border border-amber-100 bg-amber-50/70 p-4 text-sm font-semibold text-amber-700">
+                                                    The buyer has not confirmed this delivery yet. The order will move to completed after buyer confirmation.
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : selectedOrder.status === 'Cancelled' ? (
+                                        <div className="rounded-[20px] border border-rose-100 bg-rose-50/70 p-4 text-sm font-semibold text-rose-700">
+                                            This order has been cancelled, so delivery is no longer available.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-5">
+                                            <label className="block">
+                                                <span className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3 block">
+                                                    Delivery Note
+                                                </span>
+                                                <textarea
+                                                    value={deliveryNote}
+                                                    onChange={(event) => setDeliveryNote(event.target.value)}
+                                                    rows={4}
+                                                    placeholder="Tell the buyer what you completed, what this preview shows, and any final instructions."
+                                                    className="w-full rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none"
+                                                />
+                                            </label>
+
+                                            <label className="block">
+                                                <span className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3 block">
+                                                    Demo Image
+                                                </span>
+                                                <div className="rounded-[20px] border border-dashed border-indigo-200 bg-indigo-50/50 p-5">
+                                                    <div className="flex items-center gap-3 text-indigo-700 mb-3">
+                                                        <ImagePlusIcon className="w-5 h-5" />
+                                                        <span className="text-sm font-semibold">
+                                                            Upload a screenshot or preview before marking this as delivered.
+                                                        </span>
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                                                        onChange={(event) => setDeliveryImageFile(event.target.files?.[0] || null)}
+                                                        className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-indigo-700"
+                                                    />
+                                                    <p className="text-xs text-slate-500 mt-3">
+                                                        {deliveryImageFile
+                                                            ? `Selected file: ${deliveryImageFile.name}`
+                                                            : 'Accepted formats: JPG, PNG, GIF, or WEBP up to 5MB.'}
+                                                    </p>
+                                                </div>
+                                            </label>
+
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                <p className="text-sm text-slate-500">
+                                                    This will move the order to <span className="font-bold text-violet-700">Delivered</span> and wait for buyer confirmation.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDeliverOrder}
+                                                    disabled={deliveringOrderId === selectedOrder._id}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(124,58,237,0.24)] transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    <ImagePlusIcon className="w-4 h-4" />
+                                                    {deliveringOrderId === selectedOrder._id ? 'Delivering...' : 'Deliver Work'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
