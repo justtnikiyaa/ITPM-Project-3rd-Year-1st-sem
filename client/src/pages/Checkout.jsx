@@ -165,8 +165,22 @@ const Checkout = () => {
         );
     }
 
-    const serviceFee = service.price * 0.05;
-    const totalAmount = service.price + serviceFee;
+    const packagePrices = (service.packages || [])
+        .map((pkg) => Number(pkg?.price))
+        .filter((price) => Number.isFinite(price));
+    const packageDeliveryDays = (service.packages || [])
+        .map((pkg) => Number(pkg?.deliveryDays))
+        .filter((days) => Number.isFinite(days) && days > 0);
+
+    const displayPrice = Number(service.price) > 0
+        ? Number(service.price)
+        : (packagePrices.length ? Math.min(...packagePrices) : 0);
+    const displayDeliveryTime = service.deliveryTime || (packageDeliveryDays.length
+        ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}`
+        : '1 Week');
+
+    const serviceFee = displayPrice * 0.05;
+    const totalAmount = displayPrice + serviceFee;
 
     if (isSuccess) {
         return (
@@ -199,7 +213,7 @@ const Checkout = () => {
                         <div className="w-full space-y-4 mb-8">
                             <div className="flex justify-between items-center">
                                 <span className="text-gray-600 font-bold text-[14px] truncate max-w-[200px]">{service.title}</span>
-                                <span className="text-gray-800 font-bold text-[14px]">LKR {service.price.toLocaleString()}</span>
+                                <span className="text-gray-800 font-bold text-[14px]">LKR {displayPrice.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-gray-500 font-medium text-[13px]">Service Fee</span>
@@ -298,7 +312,7 @@ const Checkout = () => {
                                     {service.category}
                                 </span>
                                 <h3 className="text-[17px] font-bold text-gray-800 mb-2 leading-tight">{service.title}</h3>
-                                <p className="text-[13px] font-medium text-gray-500">Delivery in {service.deliveryTime}</p>
+                                <p className="text-[13px] font-medium text-gray-500">Delivery in {displayDeliveryTime}</p>
                             </div>
                         </div>
 
@@ -471,7 +485,7 @@ const Checkout = () => {
                             <div className="space-y-4 mb-10">
                                 <div className="flex justify-between items-center text-[13px]">
                                     <span className="text-gray-500 font-medium">Service Subtotal</span>
-                                    <span className="font-bold text-gray-800">LKR {service.price.toLocaleString()}</span>
+                                    <span className="font-bold text-gray-800">LKR {displayPrice.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-[13px]">
                                     <span className="text-gray-500 font-medium">Service Fee (5%)</span>

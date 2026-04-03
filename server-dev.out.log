@@ -1,0 +1,15 @@
+
+> unigig-server@1.0.0 dev
+> node scripts/free-port.js && nodemon server.js
+
+[dev] Port 5000 is already free.
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): server.js controllers\**\* routes\**\* models\**\* middleware\**\* config\**\*[39m
+[33m[nodemon] watching extensions: js,json[39m
+[32m[nodemon] starting `node server.js`[39m
+✅ Connected to MongoDB
+🚀 Server running on port 5000
+✅ Email transporter ready
+   Using: unigig.project@gmail.com
+[DEBUG] Service created successfully for seller: 69c367b12eb02559787d9550

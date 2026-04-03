@@ -18,6 +18,7 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// ✅ GIG DETAILS PAGE - DISPLAYS SERVICE INFORMATION
 const ServiceDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -33,9 +34,11 @@ const ServiceDetails = () => {
     useEffect(() => {
         const fetchService = async () => {
             try {
+                // ✅ RETRIEVE SERVICE: Fetch service by ID from backend
                 const res = await axios.get(`/api/services/${id}`);
                 setService(res.data);
                 if (res.data?.seller?._id) {
+                    // ✅ RETRIEVE SELLER STATS: Get rating summary for the seller
                     const statsRes = await axios.get(
                         `/api/portfolio/seller/${res.data.seller._id}/rating-summary`
                     );
@@ -67,6 +70,7 @@ const ServiceDetails = () => {
         return (
             <div className="home-page-light min-h-screen pt-32 flex items-center justify-center">
                 <div className="text-center p-8 glass-card max-w-md mx-4">
+                    {/* ✅ VALIDATION: Display error if service not found */}
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Service not found</h2>
                     <p className="text-gray-600 mb-6">{error || 'The service you are looking for might have been removed.'}</p>
                     <Link to="/" className="btn-primary inline-flex items-center gap-2">
@@ -76,6 +80,24 @@ const ServiceDetails = () => {
             </div>
         );
     }
+
+    const packagePrices = (service.packages || [])
+        .map((pkg) => Number(pkg?.price))
+        .filter((price) => Number.isFinite(price));
+    const packageDeliveryDays = (service.packages || [])
+        .map((pkg) => Number(pkg?.deliveryDays))
+        .filter((days) => Number.isFinite(days) && days > 0);
+
+    const displayPrice = Number(service.price) > 0
+        ? Number(service.price)
+        : (packagePrices.length ? Math.min(...packagePrices) : 0);
+    const fallbackDelivery = packageDeliveryDays.length ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}` : '1 Week';
+    const displayDeliveryTime = service.deliveryTime || fallbackDelivery;
+    const displayDescription =
+        service.description ||
+        service.shortDescription ||
+        service.packages?.[0]?.description ||
+        'No description provided by the seller yet.';
 
     return (
         <div className="home-page-light min-h-screen pt-28 pb-20">
@@ -125,7 +147,7 @@ const ServiceDetails = () => {
                                 About this Service
                             </h2>
                             <div className="prose prose-lg prose-indigo max-w-none text-gray-700 leading-relaxed font-medium">
-                                {service.description.split('\n').map((para, i) => (
+                                {displayDescription.split('\n').map((para, i) => (
                                     <p key={i} className="mb-4">{para}</p>
                                 ))}
                             </div>
@@ -162,7 +184,7 @@ const ServiceDetails = () => {
                                 <div className="flex justify-between items-center mb-8">
                                     <div>
                                         <h3 className="text-4xl font-black text-gray-900 tracking-tight">
-                                            LKR {service.price.toLocaleString()}
+                                            LKR {displayPrice.toLocaleString()}
                                         </h3>
                                         <p className="text-sm text-indigo-500 font-black uppercase tracking-widest mt-1">Starting Price</p>
                                     </div>
@@ -184,7 +206,7 @@ const ServiceDetails = () => {
                                         </div>
                                         <div>
                                             <p className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Delivery Time</p>
-                                            <p className="text-sm font-bold text-gray-900">{service.deliveryTime}</p>
+                                            <p className="text-sm font-bold text-gray-900">{displayDeliveryTime}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 text-gray-700">
