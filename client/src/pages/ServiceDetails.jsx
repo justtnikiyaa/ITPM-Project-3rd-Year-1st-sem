@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import {
     Clock,
     Tag,
@@ -22,6 +23,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const ServiceDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [service, setService] = useState(null);
     const [sellerStats, setSellerStats] = useState({
         averageRating: 0,
@@ -98,6 +100,16 @@ const ServiceDetails = () => {
         service.shortDescription ||
         service.packages?.[0]?.description ||
         'No description provided by the seller yet.';
+    const isOwnGig = user && service.seller?._id === user._id;
+    const isBuyerAccount = user && !user.isStudentSeller;
+    const canPlaceOrder = !isOwnGig && (!user || isBuyerAccount);
+    const orderButtonLabel = !user
+        ? 'Sign In to Order'
+        : isOwnGig
+            ? 'Your Gig'
+            : isBuyerAccount
+                ? 'Order Now'
+                : 'Buyer Account Required';
 
     return (
         <div className="home-page-light min-h-screen pt-28 pb-20">
@@ -220,13 +232,34 @@ const ServiceDetails = () => {
                                     </div>
                                 </div>
 
-                                <button 
-                                    onClick={() => navigate(`/checkout/${id}`)}
-                                    className="w-full btn-primary py-5 rounded-[1.5rem] flex items-center justify-center gap-3 group text-xl mb-5 shadow-xl shadow-indigo-200"
+                                <button
+                                    onClick={() => {
+                                        if (!user) {
+                                            navigate('/login');
+                                            return;
+                                        }
+                                        if (!canPlaceOrder) {
+                                            return;
+                                        }
+                                        navigate(`/checkout/${id}`);
+                                    }}
+                                    disabled={!canPlaceOrder}
+                                    className={`w-full py-5 rounded-[1.5rem] flex items-center justify-center gap-3 group text-xl mb-5 shadow-xl transition-all ${canPlaceOrder
+                                        ? 'btn-primary shadow-indigo-200'
+                                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        }`}
                                 >
                                     <ShoppingCart className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                    Order Now
+                                    {orderButtonLabel}
                                 </button>
+
+                                {!canPlaceOrder && user && (
+                                    <p className="text-center text-xs text-gray-500 mb-5">
+                                        {isOwnGig
+                                            ? 'You cannot place an order on your own gig.'
+                                            : 'Only buyer accounts can place orders in UniGig.'}
+                                    </p>
+                                )}
 
                                 <button className="w-full py-5 rounded-[1.5rem] border-2 border-indigo-50 text-indigo-600 font-black hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-3">
                                     <MessageCircle className="w-6 h-6" />

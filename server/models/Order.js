@@ -25,6 +25,45 @@ const orderSchema = new mongoose.Schema(
             type: String,
             default: '',
         },
+        packageId: {
+            type: String,
+            default: '',
+        },
+        packageName: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        packageDescription: {
+            type: String,
+            default: '',
+            trim: true,
+        },
+        price: {
+            type: Number,
+            required: true,
+            min: 0,
+        },
+        deliveryDays: {
+            type: Number,
+            required: true,
+            min: 1,
+        },
+        deliveryTime: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        requirementsMessage: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 3000,
+        },
+        orderDate: {
+            type: Date,
+            default: Date.now,
+        },
         deliveredImage: {
             type: String,
             default: '',
@@ -40,5 +79,8 @@ const orderSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+orderSchema.index({ seller: 1, createdAt: -1 });
+orderSchema.index({ buyer: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

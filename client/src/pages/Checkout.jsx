@@ -1,149 +1,157 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import {
-    ChevronRight,
-    Upload,
-    CreditCard,
-    Landmark,
-    ShieldCheck,
-    Download
-} from 'lucide-react';
+import { ChevronRight, CreditCard, Download, Landmark, ShieldCheck, ShoppingCart, Sparkles } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+const buildLegacyPackage = (service) => ({
+    _id: 'legacy-package',
+    name: 'Standard',
+    description: service.shortDescription || service.description || 'Standard delivery package',
+    price: Number(service.price) || 0,
+    deliveryDays: Number.parseInt(service.deliveryTime, 10) || 7,
+});
 
 const Checkout = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
+
     const [service, setService] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState('');
     const [requirements, setRequirements] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('card');
-    const [isProcessing, setIsProcessing] = useState(false);
-    
-    // Form States
+    const [selectedPackageId, setSelectedPackageId] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [placedOrder, setPlacedOrder] = useState(null);
+    const [successMessage, setSuccessMessage] = useState('');
+    const [isDownloading, setIsDownloading] = useState(false);
     const [cardName, setCardName] = useState('');
     const [cardNumber, setCardNumber] = useState('');
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCVC, setCardCVC] = useState('');
-    const [receiptFile, setReceiptFile] = useState(null);
-    const [mainAttachment, setMainAttachment] = useState(null);
-    const [isSuccess, setIsSuccess] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false);
-    
-    // Validation States
-    const [touched, setTouched] = useState({
-        cardName: false,
-        cardNumber: false,
-        cardExpiry: false,
-        cardCVC: false
-    });
-
-    const getCardError = (field) => {
-        if (!touched[field]) return null;
-        switch (field) {
-            case 'cardName':
-                if (cardName.trim().length === 0) return 'Cardholder name is required';
-                if (!/^[a-zA-ZÀ-ÿ\s\-']+$/.test(cardName)) return 'Cannot contain numbers or special characters';
-                return null;
-            case 'cardNumber':
-                return cardNumber.replace(/\s/g, '').length < 15 ? 'Enter a valid 16-digit card number' : null;
-            case 'cardExpiry':
-                return !/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry) ? 'Use MM/YY format' : null;
-            case 'cardCVC':
-                return cardCVC.length < 3 ? 'Invalid CVC' : null;
-            default:
-                return null;
-        }
-    };
-
-    const handleBlur = (field) => setTouched({ ...touched, [field]: true });
-
-    const handleCardNumberChange = (e) => {
-        let value = e.target.value.replace(/\D/g, '');
-        if (value.length > 16) value = value.slice(0, 16);
-        setCardNumber(value.replace(/(\d{4})/g, '$1 ').trim());
-    };
-
-    const handleCardExpiryChange = (e) => {
-        let value = e.target.value.replace(/\D/g, '');
-        if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2, 4);
-        setCardExpiry(value);
-    };
-
-    const handleCardCVCChange = (e) => {
-        let value = e.target.value.replace(/\D/g, '');
-        if (value.length > 4) value = value.slice(0, 4);
-        setCardCVC(value);
-    };
+    const [bankReference, setBankReference] = useState('');
 
     useEffect(() => {
         const fetchService = async () => {
             try {
                 const res = await axios.get(`/api/services/${id}`);
                 setService(res.data);
-                setLoading(false);
             } catch (err) {
-                console.error('Fetch service error:', err);
                 setError(err.response?.data?.message || 'Failed to load service');
+            } finally {
                 setLoading(false);
             }
         };
+
         fetchService();
         window.scrollTo(0, 0);
     }, [id]);
 
-    const handleConfirmPay = () => {
-        setIsProcessing(true);
-        setTimeout(() => {
-            setIsProcessing(false);
-            setIsSuccess(true);
-            window.scrollTo(0, 0);
-        }, 2000);
+    const packages = useMemo(() => {
+        if (!service) return [];
+        return service.packages?.length ? service.packages : [buildLegacyPackage(service)];
+    }, [service]);
+
+    useEffect(() => {
+        if (!selectedPackageId && packages.length > 0) {
+            setSelectedPackageId(String(packages[0]._id));
+        }
+    }, [packages, selectedPackageId]);
+
+    const selectedPackage = useMemo(
+        () => packages.find((pkg) => String(pkg._id) === String(selectedPackageId)) || packages[0] || null,
+        [packages, selectedPackageId]
+    );
+
+    const isOwnGig = !!user && service?.seller?._id === user._id;
+    const orderBlockedReason = !user
+        ? 'Please sign in to continue.'
+        : user.isStudentSeller
+            ? 'Only buyer accounts can place orders on UniGig.'
+            : isOwnGig
+                ? 'You cannot place an order on your own gig.'
+                : '';
+
+    const isCardValid =
+        cardName.trim().length >= 2 &&
+        cardNumber.replace(/\s/g, '').length >= 16 &&
+        /^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry) &&
+        cardCVC.length >= 3;
+    const isBankValid = bankReference.trim().length >= 4;
+    const isReadyToSubmit =
+        !!selectedPackage &&
+        requirements.trim().length > 0 &&
+        !orderBlockedReason &&
+        (paymentMethod === 'card' ? isCardValid : isBankValid);
+
+    const handleCardNumberChange = (e) => {
+        const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+        setCardNumber(digits.replace(/(\d{4})/g, '$1 ').trim());
     };
 
-    const downloadPDF = async () => {
+    const handleCardExpiryChange = (e) => {
+        let digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+        if (digits.length > 2) digits = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+        setCardExpiry(digits);
+    };
+
+    const handlePlaceOrder = async () => {
+        if (!selectedPackage || requirements.trim().length === 0 || orderBlockedReason) {
+            setError(orderBlockedReason || 'Please complete the order form before continuing.');
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError('');
+            const res = await axios.post('/api/orders', {
+                serviceId: service._id,
+                packageId: selectedPackage._id,
+                requirementsMessage: requirements.trim(),
+            });
+            setPlacedOrder(res.data.order);
+            setSuccessMessage(res.data.sellerNotification || 'Order placed successfully.');
+            window.scrollTo(0, 0);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to place the order. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const downloadReceipt = async () => {
         try {
             setIsDownloading(true);
-            const receiptElement = document.getElementById('payment-receipt-content');
+            const receiptElement = document.getElementById('order-receipt-content');
+            const actions = document.getElementById('order-receipt-actions');
             if (!receiptElement) throw new Error('Receipt content not found');
+            const originalDisplay = actions ? actions.style.display : '';
+            if (actions) actions.style.display = 'none';
+            await new Promise((resolve) => setTimeout(resolve, 50));
 
-            // Temporarily hide buttons manually
-            const buttons = document.getElementById('receipt-buttons');
-            const originalDisplay = buttons ? buttons.style.display : '';
-            if (buttons) buttons.style.display = 'none';
-
-            // Wait a tick for DOM to update
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            const imgData = await toPng(receiptElement, {
+            const image = await toPng(receiptElement, {
                 cacheBust: true,
-                style: { backgroundColor: '#ffffff' }
+                style: { backgroundColor: '#ffffff' },
             });
 
-            // Restore buttons
-            if (buttons) buttons.style.display = originalDisplay;
-            
-            // Handle different jsPDF import resolutions safely
+            if (actions) actions.style.display = originalDisplay;
             const PdfConstructor = typeof jsPDF === 'function' ? jsPDF : window.jspdf?.jsPDF;
             if (!PdfConstructor) throw new Error('PDF library failed to load');
 
             const pdf = new PdfConstructor('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
-            const imgProps = pdf.getImageProperties(imgData);
+            const imgProps = pdf.getImageProperties(image);
             const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`unigig_receipt_${service?._id || 'order'}.pdf`);
-            
-        } catch (error) {
-            console.error('Failed to generate PDF:', error);
-            alert(`Error: ${error.message || 'Unknown error occurred'}`);
-            const buttons = document.getElementById('receipt-buttons');
-            if (buttons) buttons.style.display = 'flex';
+            pdf.addImage(image, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`unigig-order-${placedOrder?._id || 'receipt'}.pdf`);
+        } catch (receiptError) {
+            alert(receiptError.message || 'Failed to download receipt.');
         } finally {
             setIsDownloading(false);
         }
@@ -157,386 +165,158 @@ const Checkout = () => {
         );
     }
 
-    if (error || !service) {
+    if (error && !service) {
         return (
-            <div className="min-h-screen pt-32 flex items-center justify-center text-gray-600">
-                <p>{error || 'Service not found.'}</p>
+            <div className="home-page-light min-h-screen pt-32 flex items-center justify-center px-6">
+                <div className="glass-card max-w-lg p-10 text-center">
+                    <h2 className="text-2xl font-black text-gray-900 mb-4">Unable to load checkout</h2>
+                    <p className="text-gray-500 mb-6">{error}</p>
+                    <Link to="/" className="btn-primary inline-flex items-center gap-2">Browse Services</Link>
+                </div>
             </div>
         );
     }
 
-    const packagePrices = (service.packages || [])
-        .map((pkg) => Number(pkg?.price))
-        .filter((price) => Number.isFinite(price));
-    const packageDeliveryDays = (service.packages || [])
-        .map((pkg) => Number(pkg?.deliveryDays))
-        .filter((days) => Number.isFinite(days) && days > 0);
+    if (!service || !selectedPackage) return null;
 
-    const displayPrice = Number(service.price) > 0
-        ? Number(service.price)
-        : (packagePrices.length ? Math.min(...packagePrices) : 0);
-    const displayDeliveryTime = service.deliveryTime || (packageDeliveryDays.length
-        ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}`
-        : '1 Week');
-
-    const serviceFee = displayPrice * 0.05;
-    const totalAmount = displayPrice + serviceFee;
-
-    if (isSuccess) {
+    if (placedOrder) {
         return (
             <div className="bg-[#fcfdfd] min-h-screen pt-24 pb-20 font-sans flex flex-col items-center">
-                <div className="max-w-xl w-full px-6" id="payment-receipt-content">
+                <div className="max-w-xl w-full px-6" id="order-receipt-content">
                     <div className="bg-white rounded-3xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-gray-100 flex flex-col items-center relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
-                        
                         <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 mt-4">
                             <ShieldCheck className="w-10 h-10 text-emerald-500" />
                         </div>
-                        <h2 className="text-3xl font-black text-gray-800 text-center mb-2">Payment Successful!</h2>
-                        <p className="text-gray-500 font-medium text-center mb-10">Thank you for your order. Your payment has been securely processed.</p>
-                        
-                        <div className="w-full border-t border-b border-gray-100 py-6 mb-8 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-bold text-[13px]">Service ID</span>
-                                <span className="text-gray-800 font-bold text-[13px] uppercase">{service._id.substring(0, 8)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-bold text-[13px]">Date</span>
-                                <span className="text-gray-800 font-bold text-[13px]">{new Date().toLocaleDateString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-bold text-[13px]">Payment Method</span>
-                                <span className="text-gray-800 font-bold text-[13px] capitalize">{paymentMethod === 'card' ? 'Credit Card' : 'Bank Transfer'}</span>
-                            </div>
+                        <h2 className="text-3xl font-black text-gray-800 text-center mb-2">Order Placed Successfully</h2>
+                        <p className="text-gray-500 font-medium text-center mb-6">
+                            {successMessage || 'Your seller has been notified and can now view this order in the dashboard.'}
+                        </p>
+                        <div className="w-full bg-[#f8fafc] rounded-2xl p-5 border border-gray-200/80 mb-8">
+                            <div className="flex justify-between items-center py-2"><span className="text-gray-500 font-bold text-[13px]">Order ID</span><span className="text-gray-800 font-black text-[13px]">{placedOrder._id}</span></div>
+                            <div className="flex justify-between items-center py-2"><span className="text-gray-500 font-bold text-[13px]">Gig</span><span className="text-gray-800 font-bold text-[13px] text-right max-w-[240px]">{placedOrder.titleSnapshot}</span></div>
+                            <div className="flex justify-between items-center py-2"><span className="text-gray-500 font-bold text-[13px]">Package</span><span className="text-gray-800 font-bold text-[13px]">{placedOrder.packageName}</span></div>
+                            <div className="flex justify-between items-center py-2"><span className="text-gray-500 font-bold text-[13px]">Delivery Time</span><span className="text-gray-800 font-bold text-[13px]">{placedOrder.deliveryTime}</span></div>
+                            <div className="flex justify-between items-center py-2"><span className="text-gray-500 font-bold text-[13px]">Status</span><span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-amber-700">{placedOrder.status}</span></div>
                         </div>
-
-                        <div className="w-full space-y-4 mb-8">
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-600 font-bold text-[14px] truncate max-w-[200px]">{service.title}</span>
-                                <span className="text-gray-800 font-bold text-[14px]">LKR {displayPrice.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-gray-500 font-medium text-[13px]">Service Fee</span>
-                                <span className="text-gray-800 font-bold text-[13px]">LKR {serviceFee.toLocaleString()}</span>
-                            </div>
-                        </div>
-
-                        <div className="w-full bg-[#f8fafc] rounded-2xl p-6 flex justify-between items-center border border-gray-200/80">
-                            <span className="text-gray-600 font-black text-lg">Amount Paid</span>
-                            <span className="text-3xl font-black text-indigo-600 tracking-tight">LKR {totalAmount.toLocaleString()}</span>
+                        <div className="w-full bg-[#f5f7ff] rounded-2xl p-6 flex justify-between items-center border border-indigo-100/80">
+                            <span className="text-gray-600 font-black text-lg">Order Total</span>
+                            <span className="text-3xl font-black text-indigo-600 tracking-tight">LKR {Number(placedOrder.price || 0).toLocaleString()}</span>
                         </div>
                     </div>
-
-                    <div id="receipt-buttons" className="mt-8 flex flex-col sm:flex-row gap-4">
-                        <button 
-                            onClick={downloadPDF}
-                            disabled={isDownloading}
-                            className={`flex-1 py-4 rounded-[14px] font-bold text-[15px] bg-white border-[1.5px] border-indigo-600 text-indigo-600 hover:bg-indigo-50 transition-colors flex justify-center items-center gap-2 ${isDownloading ? 'opacity-70 cursor-wait' : ''}`}
-                        >
-                            {isDownloading ? (
-                                <>
-                                    <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                                    Downloading...
-                                </>
-                            ) : (
-                                <>
-                                    <Download className="w-[18px] h-[18px]" />
-                                    Download Receipt
-                                </>
-                            )}
-                        </button>
-                        <button 
-                            onClick={() => navigate('/')}
-                            disabled={isDownloading}
-                            className={`flex-1 py-4 rounded-[14px] font-bold text-[15px] bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors ${isDownloading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                        >
-                            Return to Homepage
-                        </button>
-                    </div>
+                </div>
+                <div id="order-receipt-actions" className="max-w-xl w-full px-6 mt-8 flex flex-col sm:flex-row gap-4">
+                    <button onClick={downloadReceipt} disabled={isDownloading} className="flex-1 py-4 rounded-[14px] font-bold text-[15px] bg-white border-[1.5px] border-indigo-600 text-indigo-600 hover:bg-indigo-50 transition-colors flex justify-center items-center gap-2 disabled:opacity-70">
+                        {isDownloading ? <><div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>Downloading...</> : <><Download className="w-[18px] h-[18px]" />Download Receipt</>}
+                    </button>
+                    <button onClick={() => navigate('/')} className="flex-1 py-4 rounded-[14px] font-bold text-[15px] bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors">Browse More Services</button>
                 </div>
             </div>
         );
     }
-    
-    const isReadyToPay = paymentMethod === 'card' ? (
-        cardName.trim().length > 0 &&
-        /^[a-zA-ZÀ-ÿ\s\-']+$/.test(cardName) &&
-        cardNumber.replace(/\s/g, '').length >= 15 &&
-        cardExpiry.length >= 4 &&
-        cardCVC.length >= 3
-    ) : (
-        receiptFile !== null
-    );
 
     return (
         <div className="bg-[#fcfdfd] min-h-screen pt-24 pb-20 font-sans">
-            <div className="max-w-[1100px] mx-auto px-6">
-                
-                {/* Breadcrumbs */}
+            <div className="max-w-[1120px] mx-auto px-6">
                 <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 mb-6 mt-4">
                     <Link to="/" className="hover:text-gray-600 transition-colors">Home</Link>
                     <ChevronRight className="w-3 h-3 text-gray-300" />
-                    <Link to={`/service/${service._id}`} className="truncate max-w-[150px] hover:text-gray-600 transition-colors">
-                        {service.title}
-                    </Link>
+                    <Link to={`/service/${service._id}`} className="truncate max-w-[150px] hover:text-gray-600 transition-colors">{service.title}</Link>
                     <ChevronRight className="w-3 h-3 text-gray-300" />
                     <span className="text-gray-800 font-bold">Checkout</span>
                 </div>
-
-                {/* Title */}
                 <div className="flex items-center gap-3 mb-10">
                     <div className="w-1.5 h-8 bg-teal-400 rounded-full"></div>
                     <h1 className="text-3xl font-bold text-gray-800">Checkout & Order Details</h1>
                 </div>
 
+                {error && <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700">{error}</div>}
+                {orderBlockedReason && <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-700">{orderBlockedReason}</div>}
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14">
-                    
-                    {/* Left Column */}
                     <div className="lg:col-span-8 space-y-6">
-                        
-                        {/* Service Card */}
                         <div className="bg-white rounded-2xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-gray-100/80 flex flex-col sm:flex-row items-start gap-6">
-                            {service.coverImage ? (
-                                <img
-                                    src={`${API_BASE}${service.coverImage}`}
-                                    alt={service.title}
-                                    className="w-[120px] h-[90px] object-cover rounded-xl shadow-sm"
-                                />
-                            ) : (
-                                <div className="w-[120px] h-[90px] bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-xs text-gray-400 font-medium">
-                                    No Image
-                                </div>
-                            )}
+                            {service.coverImage ? <img src={`${API_BASE}${service.coverImage}`} alt={service.title} className="w-[120px] h-[90px] object-cover rounded-xl shadow-sm" /> : <div className="w-[120px] h-[90px] bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-xs text-gray-400 font-medium">No Image</div>}
                             <div className="flex flex-col mt-1">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
-                                    {service.category}
-                                </span>
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{service.category}</span>
                                 <h3 className="text-[17px] font-bold text-gray-800 mb-2 leading-tight">{service.title}</h3>
-                                <p className="text-[13px] font-medium text-gray-500">Delivery in {displayDeliveryTime}</p>
+                                <p className="text-[13px] font-medium text-gray-500">Seller: {service.seller?.name || 'Unknown seller'}</p>
                             </div>
                         </div>
 
-                        {/* Order Requirements */}
                         <div className="bg-white rounded-2xl p-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-gray-100/80">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">1</div>
-                                <h2 className="text-[19px] font-bold text-gray-800">Order Requirements</h2>
-                            </div>
-                            <p className="text-gray-500 text-[13px] mb-8 font-medium">Provide specific instructions, details, or brand guidelines for the seller to get started.</p>
-                            
-                            <div className="mb-8">
-                                <label className="block text-[13px] font-bold text-gray-700 mb-2.5">Instructions for Seller <span className="text-red-500">*</span></label>
-                                <textarea 
-                                    rows="4" 
-                                    value={requirements}
-                                    onChange={(e) => setRequirements(e.target.value)}
-                                    className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-4 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors resize-none placeholder-gray-400 font-medium"
-                                    placeholder="E.g., I need a modern logo using blue and white. Please include the source files."
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[13px] font-bold text-gray-700 mb-2.5">Attachments (Optional)</label>
-                                <label className="border border-dashed border-gray-300/80 rounded-[14px] p-8 flex flex-col items-center justify-center bg-[#f8fafc] hover:bg-gray-50 cursor-pointer transition-colors group">
-                                    <input type="file" className="hidden" onChange={(e) => setMainAttachment(e.target.files[0])} />
-                                    <Upload className={`w-6 h-6 mb-3 transition-colors ${mainAttachment ? 'text-indigo-500' : 'text-gray-400/80 group-hover:text-indigo-500'}`} />
-                                    <span className="text-[13px] font-bold text-gray-600 mb-1">{mainAttachment ? mainAttachment.name : 'Upload a file'}</span>
-                                    {!mainAttachment && <span className="text-[11px] text-gray-400/80 font-bold uppercase tracking-wider">PNG, JPG, PDF up to 10MB</span>}
-                                </label>
+                            <div className="flex items-center gap-4 mb-6"><div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">1</div><h2 className="text-[19px] font-bold text-gray-800">Select a Package</h2></div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {packages.map((pkg) => {
+                                    const active = String(selectedPackageId) === String(pkg._id);
+                                    return (
+                                        <button key={String(pkg._id)} type="button" onClick={() => setSelectedPackageId(String(pkg._id))} className={`text-left rounded-2xl border p-5 transition-all ${active ? 'border-indigo-500 bg-indigo-50/60 shadow-lg shadow-indigo-100' : 'border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/20'}`}>
+                                            <div className="flex items-center justify-between gap-3 mb-3"><span className="text-sm font-black text-gray-900">{pkg.name}</span><span className="text-sm font-black text-indigo-600">LKR {Number(pkg.price || 0).toLocaleString()}</span></div>
+                                            <p className="text-xs font-medium text-gray-500 leading-5 min-h-[42px]">{pkg.description || 'Package details will be confirmed with the seller after ordering.'}</p>
+                                            <div className="mt-4 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-bold text-gray-700 border border-gray-100">Delivery: {Number(pkg.deliveryDays || 1)} {Number(pkg.deliveryDays || 1) === 1 ? 'Day' : 'Days'}</div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* Payment Method */}
                         <div className="bg-white rounded-2xl p-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-gray-100/80">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">2</div>
-                                <h2 className="text-[19px] font-bold text-gray-800">Payment Method</h2>
-                            </div>
-                            
+                            <div className="flex items-center gap-4 mb-4"><div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">2</div><h2 className="text-[19px] font-bold text-gray-800">Order Requirements</h2></div>
+                            <p className="text-gray-500 text-[13px] mb-8 font-medium">Give the seller everything needed to start your project well.</p>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-2.5">Instructions for Seller <span className="text-red-500">*</span></label>
+                            <textarea rows="6" value={requirements} onChange={(e) => setRequirements(e.target.value)} className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-4 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors resize-none placeholder-gray-400 font-medium" placeholder="Describe what you need, share your goals, preferred style, deadlines, or any important files/links." />
+                        </div>
+
+                        <div className="bg-white rounded-2xl p-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-gray-100/80">
+                            <div className="flex items-center gap-4 mb-8"><div className="w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">3</div><h2 className="text-[19px] font-bold text-gray-800">Payment Method</h2></div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                {/* Card Payment */}
-                                <div 
-                                    onClick={() => setPaymentMethod('card')} 
-                                    className={`flex flex-col items-center justify-center py-7 px-4 rounded-xl border-[1.5px] cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-indigo-600 bg-indigo-50/10 shadow-sm' : 'border-gray-200/80 hover:border-gray-300'}`}
-                                >
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 transition-colors ${paymentMethod === 'card' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                        <CreditCard className="w-[18px] h-[18px]" />
-                                    </div>
-                                    <span className={`text-[13px] font-bold ${paymentMethod === 'card' ? 'text-gray-900' : 'text-gray-600'}`}>Card Payment</span>
-                                </div>
-                                
-                                {/* Bank Transfer */}
-                                <div 
-                                    onClick={() => setPaymentMethod('bank')} 
-                                    className={`flex flex-col items-center justify-center py-7 px-4 rounded-xl border-[1.5px] cursor-pointer transition-all ${paymentMethod === 'bank' ? 'border-indigo-600 bg-indigo-50/10 shadow-sm' : 'border-gray-200/80 hover:border-gray-300'}`}
-                                >
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 transition-colors ${paymentMethod === 'bank' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                        <Landmark className="w-[18px] h-[18px]" />
-                                    </div>
-                                    <span className={`text-[13px] font-bold ${paymentMethod === 'bank' ? 'text-gray-900' : 'text-gray-600'}`}>Bank Transfer</span>
-                                </div>
+                                <button type="button" onClick={() => setPaymentMethod('card')} className={`flex flex-col items-center justify-center py-7 px-4 rounded-xl border-[1.5px] transition-all ${paymentMethod === 'card' ? 'border-indigo-600 bg-indigo-50/10 shadow-sm' : 'border-gray-200/80 hover:border-gray-300'}`}><div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${paymentMethod === 'card' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}><CreditCard className="w-[18px] h-[18px]" /></div><span className={`text-[13px] font-bold ${paymentMethod === 'card' ? 'text-gray-900' : 'text-gray-600'}`}>Card Payment</span></button>
+                                <button type="button" onClick={() => setPaymentMethod('bank')} className={`flex flex-col items-center justify-center py-7 px-4 rounded-xl border-[1.5px] transition-all ${paymentMethod === 'bank' ? 'border-indigo-600 bg-indigo-50/10 shadow-sm' : 'border-gray-200/80 hover:border-gray-300'}`}><div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${paymentMethod === 'bank' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}><Landmark className="w-[18px] h-[18px]" /></div><span className={`text-[13px] font-bold ${paymentMethod === 'bank' ? 'text-gray-900' : 'text-gray-600'}`}>Bank Transfer</span></button>
                             </div>
-
-                            {/* Payment Details Section */}
                             <div className="mt-8 pt-8 border-t border-gray-100/80">
-                                {paymentMethod === 'card' && (
-                                    <div className="space-y-4 animate-fade-in-up">
-                                        <h3 className="text-[15px] font-bold text-gray-800 mb-4">Card Details</h3>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-2">Cardholder Name</label>
-                                            <input 
-                                                type="text" 
-                                                value={cardName} 
-                                                onChange={(e) => setCardName(e.target.value)} 
-                                                onBlur={() => handleBlur('cardName')}
-                                                placeholder="John Doe" 
-                                                className={`w-full bg-[#f8fafc] border rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 transition-colors placeholder-gray-400 font-medium ${getCardError('cardName') ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200/80 focus:ring-indigo-500/20 focus:border-indigo-400'}`} 
-                                            />
-                                            {getCardError('cardName') && <p className="text-red-500 text-[10px] mt-1.5 font-bold">{getCardError('cardName')}</p>}
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-2">Card Number</label>
-                                            <input 
-                                                type="text" 
-                                                value={cardNumber} 
-                                                onChange={handleCardNumberChange} 
-                                                onBlur={() => handleBlur('cardNumber')}
-                                                placeholder="0000 0000 0000 0000" 
-                                                className={`w-full bg-[#f8fafc] border rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 transition-colors placeholder-gray-400 font-medium ${getCardError('cardNumber') ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200/80 focus:ring-indigo-500/20 focus:border-indigo-400'}`} 
-                                            />
-                                            {getCardError('cardNumber') && <p className="text-red-500 text-[10px] mt-1.5 font-bold">{getCardError('cardNumber')}</p>}
-                                        </div>
+                                {paymentMethod === 'card' ? (
+                                    <div className="space-y-4">
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-2">Cardholder Name</label><input type="text" value={cardName} onChange={(e) => setCardName(e.target.value)} placeholder="John Doe" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-2">Card Number</label><input type="text" value={cardNumber} onChange={handleCardNumberChange} placeholder="0000 0000 0000 0000" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-2">Expiry Date</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={cardExpiry} 
-                                                    onChange={handleCardExpiryChange} 
-                                                    onBlur={() => handleBlur('cardExpiry')}
-                                                    placeholder="MM/YY" 
-                                                    className={`w-full bg-[#f8fafc] border rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 transition-colors placeholder-gray-400 font-medium ${getCardError('cardExpiry') ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200/80 focus:ring-indigo-500/20 focus:border-indigo-400'}`} 
-                                                />
-                                                {getCardError('cardExpiry') && <p className="text-red-500 text-[10px] mt-1.5 font-bold">{getCardError('cardExpiry')}</p>}
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-2">CVC</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={cardCVC} 
-                                                    onChange={handleCardCVCChange} 
-                                                    onBlur={() => handleBlur('cardCVC')}
-                                                    placeholder="123" 
-                                                    className={`w-full bg-[#f8fafc] border rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 transition-colors placeholder-gray-400 font-medium ${getCardError('cardCVC') ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200/80 focus:ring-indigo-500/20 focus:border-indigo-400'}`} 
-                                                />
-                                                {getCardError('cardCVC') && <p className="text-red-500 text-[10px] mt-1.5 font-bold">{getCardError('cardCVC')}</p>}
-                                            </div>
+                                            <div><label className="block text-xs font-bold text-gray-600 mb-2">Expiry Date</label><input type="text" value={cardExpiry} onChange={handleCardExpiryChange} placeholder="MM/YY" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
+                                            <div><label className="block text-xs font-bold text-gray-600 mb-2">CVC</label><input type="text" value={cardCVC} onChange={(e) => setCardCVC(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="123" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
                                         </div>
                                     </div>
-                                )}
-
-                                {paymentMethod === 'bank' && (
-                                    <div className="space-y-6 animate-fade-in-up">
-                                        <div>
-                                            <h3 className="text-[15px] font-bold text-gray-800 mb-2">Bank Transfer Details</h3>
-                                            <p className="text-[13px] text-gray-500 font-medium mb-4">Please transfer the total amount to the following bank account and upload the receipt.</p>
-                                            
-                                            <div className="bg-[#f8fafc] border border-gray-200/80 rounded-xl p-5 space-y-3">
-                                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-100">
-                                                    <span className="text-xs font-bold text-gray-500">Bank Name</span>
-                                                    <span className="text-[13px] font-bold text-gray-800">Commercial Bank</span>
-                                                </div>
-                                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-100">
-                                                    <span className="text-xs font-bold text-gray-500">Account Name</span>
-                                                    <span className="text-[13px] font-bold text-gray-800">UniGig Pvt Ltd</span>
-                                                </div>
-                                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-100">
-                                                    <span className="text-xs font-bold text-gray-500">Account Number</span>
-                                                    <span className="text-[13px] font-black text-indigo-600">800 234 5678</span>
-                                                </div>
-                                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-100">
-                                                    <span className="text-xs font-bold text-gray-500">Branch</span>
-                                                    <span className="text-[13px] font-bold text-gray-800">Colombo 03</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-2.5">Upload Payment Receipt <span className="text-red-500">*</span></label>
-                                            <label className="border border-dashed border-gray-300/80 rounded-xl p-6 flex flex-col items-center justify-center bg-[#f8fafc] hover:bg-gray-50 cursor-pointer transition-colors group">
-                                                <input type="file" className="hidden" onChange={(e) => setReceiptFile(e.target.files[0])} />
-                                                <Upload className={`w-5 h-5 mb-2 transition-colors ${receiptFile ? 'text-indigo-500' : 'text-gray-400/80 group-hover:text-indigo-500'}`} />
-                                                <span className="text-xs font-bold text-gray-600 mb-1">{receiptFile ? receiptFile.name : 'Upload Receipt'}</span>
-                                                {!receiptFile && <span className="text-[10px] text-gray-400/80 font-bold uppercase tracking-wider">PNG, JPG, PDF up to 5MB</span>}
-                                            </label>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                    </div>
-
-                    {/* Right Column: Order Summary */}
-                    <div className="lg:col-span-4">
-                        <div className="sticky top-28 bg-transparent">
-                            <h2 className="text-xl font-bold text-gray-800 mb-8 pt-1">Order Summary</h2>
-                            
-                            <div className="space-y-4 mb-10">
-                                <div className="flex justify-between items-center text-[13px]">
-                                    <span className="text-gray-500 font-medium">Service Subtotal</span>
-                                    <span className="font-bold text-gray-800">LKR {displayPrice.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-[13px]">
-                                    <span className="text-gray-500 font-medium">Service Fee (5%)</span>
-                                    <span className="font-bold text-gray-800">LKR {serviceFee.toLocaleString()}</span>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col mb-10">
-                                <span className="text-[10px] uppercase font-bold text-gray-400 text-right mb-1">LKR</span>
-                                <div className="flex justify-between items-end">
-                                    <span className="text-[13px] font-bold text-gray-600 pb-1.5">Total Amount</span>
-                                    <span className="text-4xl font-black text-gray-800 tracking-tight">{totalAmount.toLocaleString()}</span>
-                                </div>
-                            </div>
-
-                            <div className="bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] p-4 rounded-[14px] flex items-start gap-3 mb-8">
-                                <ShieldCheck className="w-5 h-5 text-[#22c55e] flex-shrink-0 mt-0.5" />
-                                <p className="text-[11px] font-semibold leading-relaxed">
-                                    Payment is held securely by UniGig and only released when you approve the delivered work.
-                                </p>
-                            </div>
-
-                            <div>
-                                <button 
-                                    disabled={!isReadyToPay || isProcessing}
-                                    onClick={handleConfirmPay}
-                                    className={`w-full py-4 rounded-[14px] font-bold text-[15px] transition-all duration-300 flex justify-center items-center gap-2 ${
-                                        isReadyToPay 
-                                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer shadow-lg shadow-indigo-200' 
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                    }`}
-                                >
-                                    {isProcessing ? (
-                                        <>
-                                        <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                                        Processing...
-                                    </>
                                 ) : (
-                                    'Checkout & Pay'
+                                    <div className="space-y-4">
+                                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">Use any transfer reference you want for this demo flow. The order will still be created in UniGig and visible to the seller.</div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-2">Transfer Reference</label><input type="text" value={bankReference} onChange={(e) => setBankReference(e.target.value)} placeholder="TRX-4582" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
+                                    </div>
                                 )}
-                            </button>
-                            
-                            {!isReadyToPay && (
-                                <p className="text-center text-[11px] font-bold text-gray-400/80 mt-4">
-                                    Please complete payment details to continue.
-                                </p>
-                            )}
-                        </div>
+                            </div>
                         </div>
                     </div>
 
+                    <div className="lg:col-span-4">
+                        <div className="sticky top-28 bg-white rounded-3xl border border-gray-100 shadow-[0_10px_35px_rgba(80,70,170,0.08)] p-8">
+                            <div className="flex items-center gap-3 mb-6"><ShoppingCart className="w-5 h-5 text-indigo-600" /><h2 className="text-xl font-bold text-gray-800">Order Summary</h2></div>
+                            <div className="rounded-2xl bg-[#f8fafc] border border-gray-100 p-5 mb-6">
+                                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Selected Package</p>
+                                <h3 className="text-lg font-black text-gray-900">{selectedPackage.name}</h3>
+                                <p className="text-sm text-gray-500 mt-2 leading-6">{selectedPackage.description || 'Package details will be shared with the seller at order time.'}</p>
+                            </div>
+                            <div className="space-y-4 mb-8">
+                                <div className="flex justify-between items-center text-[13px]"><span className="text-gray-500 font-medium">Package Price</span><span className="font-bold text-gray-800">LKR {Number(selectedPackage.price || 0).toLocaleString()}</span></div>
+                                <div className="flex justify-between items-center text-[13px]"><span className="text-gray-500 font-medium">Delivery Time</span><span className="font-bold text-gray-800">{Number(selectedPackage.deliveryDays || 1)} {Number(selectedPackage.deliveryDays || 1) === 1 ? 'Day' : 'Days'}</span></div>
+                                <div className="flex justify-between items-center text-[13px]"><span className="text-gray-500 font-medium">Order Status</span><span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-amber-700">Pending</span></div>
+                            </div>
+                            <div className="flex flex-col mb-8">
+                                <span className="text-[10px] uppercase font-bold text-gray-400 text-right mb-1">LKR</span>
+                                <div className="flex justify-between items-end"><span className="text-[13px] font-bold text-gray-600 pb-1.5">Total Amount</span><span className="text-4xl font-black text-gray-800 tracking-tight">{Number(selectedPackage.price || 0).toLocaleString()}</span></div>
+                            </div>
+                            <div className="bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] p-4 rounded-[14px] flex items-start gap-3 mb-8"><ShieldCheck className="w-5 h-5 text-[#22c55e] flex-shrink-0 mt-0.5" /><p className="text-[11px] font-semibold leading-relaxed">Once placed, the seller will immediately see this order inside the UniGig seller dashboard.</p></div>
+                            <button disabled={!isReadyToSubmit || isSubmitting} onClick={handlePlaceOrder} className={`w-full py-4 rounded-[14px] font-bold text-[15px] transition-all duration-300 flex justify-center items-center gap-2 ${isReadyToSubmit ? 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer shadow-lg shadow-indigo-200' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
+                                {isSubmitting ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Placing Order...</> : <><Sparkles className="w-4 h-4" />Checkout & Place Order</>}
+                            </button>
+                            {!isReadyToSubmit && <p className="text-center text-[11px] font-bold text-gray-400/80 mt-4">Select a package, add requirements, and complete payment details to continue.</p>}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

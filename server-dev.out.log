@@ -12,4 +12,9 @@
 🚀 Server running on port 5000
 ✅ Email transporter ready
    Using: unigig.project@gmail.com
-[DEBUG] Service created successfully for seller: 69c367b12eb02559787d9550
+✅ OTP email sent successfully: {
+  to: 'nihindudulavin02@gmail.com',
+  messageId: '<ead4d42a-71e3-6f36-e731-7b523102dfef@gmail.com>',
+  timestamp: '2026-04-03T12:35:19.245Z'
+}
+📧 OTP sent to: nihindudulavin02@gmail.com

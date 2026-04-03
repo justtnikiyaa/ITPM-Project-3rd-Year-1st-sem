@@ -4,6 +4,9 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import CreateGigForm from '../components/CreateGigForm';
 import {
+    ClipboardList,
+    CalendarDays,
+    CircleDollarSign,
     Plus,
     Edit3,
     Upload,
@@ -53,6 +56,9 @@ const SellerDashboard = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [deletingIds, setDeletingIds] = useState([]);
+    const [incomingOrders, setIncomingOrders] = useState([]);
+    const [ordersLoading, setOrdersLoading] = useState(true);
+    const [updatingOrderId, setUpdatingOrderId] = useState('');
     const [earnings, setEarnings] = useState({
         totalEarnings: 0,
         monthlyEarnings: 0,
@@ -107,6 +113,25 @@ const SellerDashboard = () => {
     useEffect(() => {
         if (user?.isStudentSeller) fetchEarnings();
     }, [user, fetchEarnings]);
+
+    const fetchIncomingOrders = useCallback(async () => {
+        try {
+            setOrdersLoading(true);
+            const res = await axios.get('/api/orders/seller');
+            setIncomingOrders(res.data);
+        } catch (err) {
+            console.error('Failed to load incoming orders:', err);
+            setError(err.response?.data?.message || 'Failed to load incoming orders.');
+        } finally {
+            setOrdersLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (user?.isStudentSeller) {
+            fetchIncomingOrders();
+        }
+    }, [user, fetchIncomingOrders]);
 
     // Hide the navbar while the create gig modal is open to maximize viewport space.
     useEffect(() => {
@@ -174,6 +199,24 @@ const SellerDashboard = () => {
         setShowForm(true);
     };
 
+    const handleUpdateOrderStatus = async (orderId, status) => {
+        try {
+            setUpdatingOrderId(orderId);
+            const res = await axios.patch(`/api/orders/${orderId}/status`, { status });
+            setIncomingOrders((prev) =>
+                prev.map((order) => (order._id === orderId ? res.data.order : order))
+            );
+            setSuccess('Order status updated successfully.');
+            setTimeout(() => setSuccess(''), 2500);
+            fetchEarnings();
+        } catch (err) {
+            console.error('Failed to update order status:', err);
+            setError(err.response?.data?.message || 'Failed to update order status.');
+        } finally {
+            setUpdatingOrderId('');
+        }
+    };
+
     const handleCloseForm = () => {
         setShowForm(false);
         setEditingGig(null);
@@ -182,6 +225,12 @@ const SellerDashboard = () => {
     if (!user?.isStudentSeller) return null;
 
     const isActive = user?.availability === 'Active';
+    const statusClasses = {
+        Pending: 'bg-amber-50 text-amber-700 border-amber-200',
+        'In Progress': 'bg-blue-50 text-blue-700 border-blue-200',
+        Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+    };
 
     return (
         <div className="seller-dash-light">
@@ -285,6 +334,130 @@ const SellerDashboard = () => {
                         {error}
                     </div>
                 )}
+
+                <section className="animate-fade-in-up">
+                    <div className="seller-dash-light__grid-header">
+                        <h2 className="seller-dash-light__section-title">
+                            Incoming <span className="gradient-text">Orders</span>
+                        </h2>
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium opacity-60">
+                                {incomingOrders.length} {incomingOrders.length === 1 ? 'order' : 'orders'}
+                            </span>
+                            <button
+                                onClick={fetchIncomingOrders}
+                                disabled={ordersLoading}
+                                className="p-2 rounded-full hover:bg-black/5 transition-colors"
+                                title="Reload orders"
+                            >
+                                <Sparkles className={ordersLoading ? 'animate-spin' : ''} size={18} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {ordersLoading ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-10">
+                            {[1, 2].map((item) => (
+                                <div key={item} className="seller-dash-light__skeleton seller-dash-light__skeleton-shimmer" style={{ height: '200px' }} />
+                            ))}
+                        </div>
+                    ) : incomingOrders.length === 0 ? (
+                        <div className="glass-card p-10 rounded-[28px] text-center mb-10">
+                            <div className="w-16 h-16 mx-auto rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                                <ClipboardList />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">No incoming orders yet</h3>
+                            <p className="text-sm text-gray-500">
+                                New buyer orders for your gigs will appear here as soon as they are placed.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-10">
+                            {incomingOrders.map((order) => (
+                                <article
+                                    key={order._id}
+                                    className="rounded-[28px] border border-white/60 bg-white/85 backdrop-blur p-6 shadow-[0_14px_35px_rgba(80,70,170,0.08)]"
+                                >
+                                    <div className="flex items-start justify-between gap-4 mb-5">
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400 mb-2">
+                                                Order ID
+                                            </p>
+                                            <h3 className="text-lg font-black text-gray-900 break-all">{order._id}</h3>
+                                        </div>
+                                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wide ${statusClasses[order.status] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                                            {order.status}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-3 text-sm text-gray-700">
+                                        <div className="flex items-start gap-3">
+                                            <ClipboardList className="w-4 h-4 mt-0.5 text-indigo-500" />
+                                            <div>
+                                                <p className="font-semibold text-gray-500">Gig Title</p>
+                                                <p className="font-bold text-gray-900">{order.titleSnapshot || order.service?.title}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-3">
+                                            <Sparkles className="w-4 h-4 mt-0.5 text-indigo-500" />
+                                            <div>
+                                                <p className="font-semibold text-gray-500">Buyer</p>
+                                                <p className="font-bold text-gray-900">{order.buyer?.name || 'Unknown buyer'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
+                                                <p className="text-xs font-bold text-slate-400 mb-1">Price</p>
+                                                <p className="font-black text-slate-900 inline-flex items-center gap-1">
+                                                    <CircleDollarSign className="w-4 h-4 text-indigo-500" />
+                                                    LKR {Number(order.price || 0).toLocaleString()}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
+                                                <p className="text-xs font-bold text-slate-400 mb-1">Delivery</p>
+                                                <p className="font-black text-slate-900">{order.deliveryTime}</p>
+                                            </div>
+                                            <div className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
+                                                <p className="text-xs font-bold text-slate-400 mb-1">Created</p>
+                                                <p className="font-black text-slate-900 inline-flex items-center gap-1">
+                                                    <CalendarDays className="w-4 h-4 text-indigo-500" />
+                                                    {new Date(order.createdAt || order.orderDate).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl bg-indigo-50/60 p-4 border border-indigo-100">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-indigo-400 mb-2">Buyer Requirements</p>
+                                            <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">
+                                                {order.requirementsMessage || 'No buyer instructions were provided.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 pt-5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">
+                                                Update Status
+                                            </p>
+                                            <p className="text-sm text-gray-500">
+                                                Keep the buyer informed as you work through this order.
+                                            </p>
+                                        </div>
+                                        <select
+                                            value={order.status}
+                                            onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
+                                            disabled={updatingOrderId === order._id}
+                                            className="min-w-[170px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                                        >
+                                            {['Pending', 'In Progress', 'Completed', 'Cancelled'].map((status) => (
+                                                <option key={status} value={status}>{status}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
 
                 {/* ═══ Modal Form ═══ */}
                 {showForm && (
