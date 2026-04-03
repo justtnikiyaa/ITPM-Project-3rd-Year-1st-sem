@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Service = require('../models/Service');
 
-const ORDER_STATUSES = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
+const ORDER_STATUSES = ['Pending', 'In Progress', 'Delivered', 'Completed', 'Cancelled'];
 
 const toDeliveryLabel = (days) => {
     const numericDays = Number(days);
@@ -146,7 +146,7 @@ const updateOrderStatus = async (req, res) => {
             return res.status(400).json({ message: 'Invalid order id' });
         }
 
-        if (!ORDER_STATUSES.includes(status)) {
+        if (!['Pending', 'In Progress', 'Cancelled'].includes(status)) {
             return res.status(400).json({ message: 'Invalid order status' });
         }
 
@@ -159,8 +159,16 @@ const updateOrderStatus = async (req, res) => {
             return res.status(403).json({ message: 'You can only update your own incoming orders' });
         }
 
+        if (['Delivered', 'Completed', 'Cancelled'].includes(order.status)) {
+            return res.status(400).json({
+                message: 'Delivered, completed, or cancelled orders cannot be modified by the seller',
+            });
+        }
+
         order.status = status;
-        order.completedAt = status === 'Completed' ? new Date() : undefined;
+        if (status === 'Cancelled') {
+            order.completedAt = undefined;
+        }
         await order.save();
 
         const populatedOrder = await Order.findById(order._id).populate(orderPopulate);
@@ -174,10 +182,91 @@ const updateOrderStatus = async (req, res) => {
     }
 };
 
+const deliverOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deliveryNote = String(req.body.deliveryNote || '').trim();
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid order id' });
+        }
+
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        if (String(order.seller) !== String(req.user._id)) {
+            return res.status(403).json({ message: 'You can only deliver your own incoming orders' });
+        }
+
+        if (['Cancelled', 'Completed'].includes(order.status)) {
+            return res.status(400).json({ message: `Cannot deliver an order that is already ${order.status}` });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'A demo image is required before delivering work' });
+        }
+
+        order.deliveryNote = deliveryNote;
+        order.deliveredImage = `/uploads/${req.file.filename}`;
+        order.deliveredAt = new Date();
+        order.status = 'Delivered';
+        await order.save();
+
+        const populatedOrder = await Order.findById(order._id).populate(orderPopulate);
+        return res.json({
+            message: 'Work delivered successfully. Waiting for buyer confirmation.',
+            order: populatedOrder,
+        });
+    } catch (error) {
+        console.error('Deliver order error:', error);
+        return res.status(500).json({ message: 'Server error while delivering order' });
+    }
+};
+
+const confirmDeliveredOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid order id' });
+        }
+
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        if (String(order.buyer) !== String(req.user._id)) {
+            return res.status(403).json({ message: 'You can only confirm your own delivered orders' });
+        }
+
+        if (order.status !== 'Delivered') {
+            return res.status(400).json({ message: 'Only delivered orders can be confirmed by the buyer' });
+        }
+
+        order.status = 'Completed';
+        order.completedAt = new Date();
+        await order.save();
+
+        const populatedOrder = await Order.findById(order._id).populate(orderPopulate);
+        return res.json({
+            message: 'Order confirmed successfully.',
+            order: populatedOrder,
+        });
+    } catch (error) {
+        console.error('Confirm delivered order error:', error);
+        return res.status(500).json({ message: 'Server error while confirming delivery' });
+    }
+};
+
 module.exports = {
     ORDER_STATUSES,
     createOrder,
     getSellerOrders,
     getBuyerOrders,
     updateOrderStatus,
+    deliverOrder,
+    confirmDeliveredOrder,
 };

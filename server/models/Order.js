@@ -68,9 +68,18 @@ const orderSchema = new mongoose.Schema(
             type: String,
             default: '',
         },
+        deliveryNote: {
+            type: String,
+            default: '',
+            trim: true,
+            maxlength: 3000,
+        },
+        deliveredAt: {
+            type: Date,
+        },
         status: {
             type: String,
-            enum: ['Pending', 'In Progress', 'Completed', 'Cancelled'],
+            enum: ['Pending', 'In Progress', 'Delivered', 'Completed', 'Cancelled'],
             default: 'Pending',
         },
         completedAt: {
