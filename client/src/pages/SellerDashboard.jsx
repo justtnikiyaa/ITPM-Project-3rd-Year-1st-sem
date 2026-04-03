@@ -1,15 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import CreateGigForm from '../components/CreateGigForm';
 import {
+    Activity,
+    AlertCircle,
     ClipboardList,
     CalendarDays,
+    CheckCircle2,
     CircleDollarSign,
+    Eye,
     Plus,
     Edit3,
-    Upload,
     ImagePlus,
     X,
     Clock,
@@ -43,6 +46,25 @@ const assetUrl = (rawPath) => {
     return `${ASSET_BASE}${withLeadingSlash}`;
 };
 
+const formatDate = (value) => {
+    if (!value) return 'N/A';
+    return new Date(value).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+};
+
+const getDeliveryDeadline = (order) => {
+    const baseDate = order?.orderDate || order?.createdAt;
+    const deliveryDays = Number(order?.deliveryDays || 0);
+    if (!baseDate || !deliveryDays) return 'N/A';
+
+    const deadline = new Date(baseDate);
+    deadline.setDate(deadline.getDate() + deliveryDays);
+    return formatDate(deadline);
+};
+
 
 const SellerDashboard = () => {
     const { user, updateUser } = useAuth();
@@ -59,6 +81,7 @@ const SellerDashboard = () => {
     const [incomingOrders, setIncomingOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(true);
     const [updatingOrderId, setUpdatingOrderId] = useState('');
+    const [selectedOrder, setSelectedOrder] = useState(null);
     const [earnings, setEarnings] = useState({
         totalEarnings: 0,
         monthlyEarnings: 0,
@@ -135,7 +158,7 @@ const SellerDashboard = () => {
 
     // Hide the navbar while the create gig modal is open to maximize viewport space.
     useEffect(() => {
-        if (showForm) {
+        if (showForm || selectedOrder) {
             document.body.classList.add('seller-modal-open');
         } else {
             document.body.classList.remove('seller-modal-open');
@@ -144,7 +167,7 @@ const SellerDashboard = () => {
         return () => {
             document.body.classList.remove('seller-modal-open');
         };
-    }, [showForm]);
+    }, [showForm, selectedOrder]);
 
     // ✅ SELLER ACTIVE/NON-ACTIVE STATUS - TOGGLE HANDLER
     const handleToggleAvailability = async () => {
@@ -231,6 +254,51 @@ const SellerDashboard = () => {
         Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
     };
+    const recentActivity = useMemo(() => {
+        const orderActivities = incomingOrders.flatMap((order) => {
+            const items = [
+                {
+                    id: `order-${order._id}`,
+                    type: 'new-order',
+                    title: 'New order received',
+                    description: `${order.buyer?.name || 'A buyer'} ordered ${order.titleSnapshot || order.service?.title || 'your gig'}.`,
+                    date: order.createdAt || order.orderDate,
+                    icon: AlertCircle,
+                    tone: 'bg-amber-50 text-amber-700 border-amber-200',
+                },
+            ];
+
+            if (order.status === 'Completed' && order.completedAt) {
+                items.push({
+                    id: `completed-${order._id}`,
+                    type: 'completed-order',
+                    title: 'Order marked completed',
+                    description: `${order.titleSnapshot || order.service?.title || 'An order'} was completed successfully.`,
+                    date: order.completedAt,
+                    icon: CheckCircle2,
+                    tone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                });
+            }
+
+            return items;
+        });
+
+        const gigActivities = gigs
+            .filter((gig) => gig.updatedAt && gig.createdAt && gig.updatedAt !== gig.createdAt)
+            .map((gig) => ({
+                id: `gig-${gig._id}`,
+                type: 'gig-updated',
+                title: 'Gig updated',
+                description: `${gig.title} was updated in your seller profile.`,
+                date: gig.updatedAt,
+                icon: Sparkles,
+                tone: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+            }));
+
+        return [...orderActivities, ...gigActivities]
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 6);
+    }, [incomingOrders, gigs]);
 
     return (
         <div className="seller-dash-light">
@@ -320,6 +388,55 @@ const SellerDashboard = () => {
                         </div>
                     </div>
                 </div>
+
+                <section className="animate-fade-in-up mb-10">
+                    <div className="seller-dash-light__grid-header">
+                        <h2 className="seller-dash-light__section-title">
+                            Recent <span className="gradient-text">Activity</span>
+                        </h2>
+                        <span className="text-sm font-medium opacity-60">
+                            Latest actions across gigs and orders
+                        </span>
+                    </div>
+
+                    {recentActivity.length === 0 ? (
+                        <div className="glass-card p-8 rounded-[24px] text-center">
+                            <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                                <Activity />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">No recent activity yet</h3>
+                            <p className="text-sm text-gray-500">
+                                New orders, gig edits, and completed work will show up here.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {recentActivity.map((item) => {
+                                const Icon = item.icon;
+
+                                return (
+                                    <article
+                                        key={item.id}
+                                        className="rounded-[22px] border border-white/70 bg-white/90 p-5 shadow-[0_12px_28px_rgba(80,70,170,0.08)]"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center ${item.tone}`}>
+                                                <Icon className="w-5 h-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-gray-900">{item.title}</p>
+                                                <p className="text-sm text-gray-600 leading-6 mt-1">{item.description}</p>
+                                                <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mt-3">
+                                                    {formatDate(item.date)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
 
                 {/* ── Success/Error Messages ── */}
                 {success && (
@@ -453,6 +570,14 @@ const SellerDashboard = () => {
                                             ))}
                                         </select>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedOrder(order)}
+                                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                        View Order Details
+                                    </button>
                                 </article>
                             ))}
                         </div>
@@ -475,6 +600,81 @@ const SellerDashboard = () => {
                                 onCancel={handleCloseForm}
                                 initialGig={editingGig}
                             />
+                        </div>
+                    </div>
+                )}
+
+                {selectedOrder && (
+                    <div className="seller-modal-overlay seller-order-detail-overlay" onClick={() => setSelectedOrder(null)}>
+                        <div
+                            className="seller-modal-content seller-order-detail-modal"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setSelectedOrder(null)}
+                                className="seller-modal-close"
+                            >
+                                <X size={24} />
+                            </button>
+
+                            <div className="p-8 sm:p-10">
+                                <div className="flex items-start justify-between gap-4 mb-8">
+                                    <div>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400 mb-2">
+                                            Order Detail View
+                                        </p>
+                                        <h2 className="text-2xl font-black text-gray-900 leading-tight">
+                                            {selectedOrder.titleSnapshot || selectedOrder.service?.title}
+                                        </h2>
+                                        <p className="text-sm text-gray-500 mt-2 break-all">
+                                            Order ID: {selectedOrder._id}
+                                        </p>
+                                    </div>
+                                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wide ${statusClasses[selectedOrder.status] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                                        {selectedOrder.status}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-5">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Buyer</p>
+                                        <p className="text-base font-black text-slate-900">{selectedOrder.buyer?.name || 'Unknown buyer'}</p>
+                                        <p className="text-sm text-slate-500 mt-1">{selectedOrder.buyer?.email || 'No email available'}</p>
+                                    </div>
+                                    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-5">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Selected Package</p>
+                                        <p className="text-base font-black text-slate-900">{selectedOrder.packageName || 'Standard'}</p>
+                                        <p className="text-sm text-slate-500 mt-1">
+                                            LKR {Number(selectedOrder.price || 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                                    <div className="rounded-[22px] border border-indigo-100 bg-indigo-50/60 p-5">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-indigo-400 mb-2">Order Date</p>
+                                        <p className="text-base font-black text-slate-900">{formatDate(selectedOrder.orderDate || selectedOrder.createdAt)}</p>
+                                    </div>
+                                    <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/60 p-5">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-emerald-500 mb-2">Delivery Time</p>
+                                        <p className="text-base font-black text-slate-900">{selectedOrder.deliveryTime}</p>
+                                    </div>
+                                    <div className="rounded-[22px] border border-amber-100 bg-amber-50/60 p-5">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-500 mb-2">Delivery Deadline</p>
+                                        <p className="text-base font-black text-slate-900">{getDeliveryDeadline(selectedOrder)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-[24px] border border-slate-100 bg-white p-6 shadow-[0_10px_20px_rgba(15,23,42,0.04)]">
+                                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400 mb-3">
+                                        Buyer Requirements
+                                    </p>
+                                    <p className="text-sm leading-7 text-slate-700 whitespace-pre-wrap">
+                                        {selectedOrder.requirementsMessage || 'No buyer requirements were provided.'}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
