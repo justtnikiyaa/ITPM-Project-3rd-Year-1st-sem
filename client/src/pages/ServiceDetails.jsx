@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import {
     Clock,
     Tag,
@@ -18,9 +19,11 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// ✅ GIG DETAILS PAGE - DISPLAYS SERVICE INFORMATION
 const ServiceDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [service, setService] = useState(null);
     const [sellerStats, setSellerStats] = useState({
         averageRating: 0,
@@ -33,9 +36,11 @@ const ServiceDetails = () => {
     useEffect(() => {
         const fetchService = async () => {
             try {
+                // ✅ RETRIEVE SERVICE: Fetch service by ID from backend
                 const res = await axios.get(`/api/services/${id}`);
                 setService(res.data);
                 if (res.data?.seller?._id) {
+                    // ✅ RETRIEVE SELLER STATS: Get rating summary for the seller
                     const statsRes = await axios.get(
                         `/api/portfolio/seller/${res.data.seller._id}/rating-summary`
                     );
@@ -67,6 +72,7 @@ const ServiceDetails = () => {
         return (
             <div className="home-page-light min-h-screen pt-32 flex items-center justify-center">
                 <div className="text-center p-8 glass-card max-w-md mx-4">
+                    {/* ✅ VALIDATION: Display error if service not found */}
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Service not found</h2>
                     <p className="text-gray-600 mb-6">{error || 'The service you are looking for might have been removed.'}</p>
                     <Link to="/" className="btn-primary inline-flex items-center gap-2">
@@ -76,6 +82,34 @@ const ServiceDetails = () => {
             </div>
         );
     }
+
+    const packagePrices = (service.packages || [])
+        .map((pkg) => Number(pkg?.price))
+        .filter((price) => Number.isFinite(price));
+    const packageDeliveryDays = (service.packages || [])
+        .map((pkg) => Number(pkg?.deliveryDays))
+        .filter((days) => Number.isFinite(days) && days > 0);
+
+    const displayPrice = Number(service.price) > 0
+        ? Number(service.price)
+        : (packagePrices.length ? Math.min(...packagePrices) : 0);
+    const fallbackDelivery = packageDeliveryDays.length ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}` : '1 Week';
+    const displayDeliveryTime = service.deliveryTime || fallbackDelivery;
+    const displayDescription =
+        service.description ||
+        service.shortDescription ||
+        service.packages?.[0]?.description ||
+        'No description provided by the seller yet.';
+    const isOwnGig = user && service.seller?._id === user._id;
+    const isBuyerAccount = user && !user.isStudentSeller;
+    const canPlaceOrder = !isOwnGig && (!user || isBuyerAccount);
+    const orderButtonLabel = !user
+        ? 'Sign In to Order'
+        : isOwnGig
+            ? 'Your Gig'
+            : isBuyerAccount
+                ? 'Order Now'
+                : 'Buyer Account Required';
 
     return (
         <div className="home-page-light min-h-screen pt-28 pb-20">
@@ -125,7 +159,7 @@ const ServiceDetails = () => {
                                 About this Service
                             </h2>
                             <div className="prose prose-lg prose-indigo max-w-none text-gray-700 leading-relaxed font-medium">
-                                {service.description.split('\n').map((para, i) => (
+                                {displayDescription.split('\n').map((para, i) => (
                                     <p key={i} className="mb-4">{para}</p>
                                 ))}
                             </div>
@@ -162,7 +196,7 @@ const ServiceDetails = () => {
                                 <div className="flex justify-between items-center mb-8">
                                     <div>
                                         <h3 className="text-4xl font-black text-gray-900 tracking-tight">
-                                            LKR {service.price.toLocaleString()}
+                                            LKR {displayPrice.toLocaleString()}
                                         </h3>
                                         <p className="text-sm text-indigo-500 font-black uppercase tracking-widest mt-1">Starting Price</p>
                                     </div>
@@ -184,7 +218,7 @@ const ServiceDetails = () => {
                                         </div>
                                         <div>
                                             <p className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Delivery Time</p>
-                                            <p className="text-sm font-bold text-gray-900">{service.deliveryTime}</p>
+                                            <p className="text-sm font-bold text-gray-900">{displayDeliveryTime}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4 text-gray-700">
@@ -198,13 +232,34 @@ const ServiceDetails = () => {
                                     </div>
                                 </div>
 
-                                <button 
-                                    onClick={() => navigate(`/checkout/${id}`)}
-                                    className="w-full btn-primary py-5 rounded-[1.5rem] flex items-center justify-center gap-3 group text-xl mb-5 shadow-xl shadow-indigo-200"
+                                <button
+                                    onClick={() => {
+                                        if (!user) {
+                                            navigate('/login');
+                                            return;
+                                        }
+                                        if (!canPlaceOrder) {
+                                            return;
+                                        }
+                                        navigate(`/checkout/${id}`);
+                                    }}
+                                    disabled={!canPlaceOrder}
+                                    className={`w-full py-5 rounded-[1.5rem] flex items-center justify-center gap-3 group text-xl mb-5 shadow-xl transition-all ${canPlaceOrder
+                                        ? 'btn-primary shadow-indigo-200'
+                                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        }`}
                                 >
                                     <ShoppingCart className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                    Order Now
+                                    {orderButtonLabel}
                                 </button>
+
+                                {!canPlaceOrder && user && (
+                                    <p className="text-center text-xs text-gray-500 mb-5">
+                                        {isOwnGig
+                                            ? 'You cannot place an order on your own gig.'
+                                            : 'Only buyer accounts can place orders in UniGig.'}
+                                    </p>
+                                )}
 
                                 <button className="w-full py-5 rounded-[1.5rem] border-2 border-indigo-50 text-indigo-600 font-black hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-3">
                                     <MessageCircle className="w-6 h-6" />

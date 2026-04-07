@@ -27,12 +27,12 @@ function App() {
           <Route path="/become-seller" element={<BecomeASeller />} />
           <Route path="/login" element={<Login />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/dashboard" element={<SellerDashboard />} />
+          <Route path="/dashboard" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
           <Route path="/service/:id" element={<ServiceDetails />} />
           <Route path="/profile/me" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
           <Route path="/profile/edit" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
           <Route path="/portfolio/:sellerId" element={<SellerPortfolioPage />} />
-          <Route path="/checkout/:id" element={<Checkout />} />
+          <Route path="/checkout/:id" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         </Routes>
       </Router>
     </AuthProvider>

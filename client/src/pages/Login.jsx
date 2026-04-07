@@ -17,8 +17,13 @@ const Login = () => {
 
         try {
             const data = await login(email, password);
-            // Sellers go to dashboard, buyers go to home
-            navigate(data.isStudentSeller ? '/dashboard' : '/');
+            // If user is not verified, redirect to verify-email
+            if (!data.isVerified) {
+                navigate('/verify-email');
+            } else {
+                // Sellers go to dashboard, buyers go to home
+                navigate(data.isStudentSeller ? '/dashboard' : '/');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
         } finally {

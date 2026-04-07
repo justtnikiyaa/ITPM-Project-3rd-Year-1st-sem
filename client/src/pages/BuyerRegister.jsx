@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+// ✅ BUYER ACCOUNT CREATION - CLIENT-SIDE COMPONENT
 const BuyerRegister = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -11,15 +12,18 @@ const BuyerRegister = () => {
     const { register } = useAuth();
     const navigate = useNavigate();
 
+    // ✅ CLIENT-SIDE VALIDATION: Check required fields before submission
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setSubmitting(true);
 
         try {
+            // Call register function from AuthContext (sends to backend for validation)
             await register(name, email, password);
             navigate('/verify-email');
         } catch (err) {
+            // Display backend validation errors or generic error message
             setError(err.response?.data?.message || 'Registration failed');
         } finally {
             setSubmitting(false);
@@ -73,6 +77,7 @@ const BuyerRegister = () => {
 
                     <div className="auth-page-light__field">
                         <label className="auth-page-light__label">Full Name</label>
+                        {/* ✅ VALIDATION: Name required attribute */}
                         <input
                             type="text"
                             className="auth-page-light__input"
@@ -85,6 +90,7 @@ const BuyerRegister = () => {
 
                     <div className="auth-page-light__field">
                         <label className="auth-page-light__label">Email Address</label>
+                        {/* ✅ VALIDATION: Email type input provides browser validation */}
                         <input
                             type="email"
                             className="auth-page-light__input"
@@ -97,6 +103,7 @@ const BuyerRegister = () => {
 
                     <div className="auth-page-light__field">
                         <label className="auth-page-light__label">Password</label>
+                        {/* ✅ VALIDATION: Password minimum 6 characters (enforced on both client and server) */}
                         <input
                             type="password"
                             className="auth-page-light__input"
