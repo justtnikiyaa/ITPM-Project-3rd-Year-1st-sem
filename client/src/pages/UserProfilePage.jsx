@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +7,9 @@ import {
     Briefcase,
     CheckCircle2,
     Compass,
+    Clock3,
     FolderKanban,
+    ImageIcon,
     Mail,
     PenSquare,
     Sparkles,
@@ -19,12 +21,58 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const toImageUrl = (path) => (path?.startsWith('http') ? path : `${API_BASE}${path || ''}`);
+const formatDate = (value) =>
+    value
+        ? new Date(value).toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+          })
+        : 'N/A';
+const buyerStatusClasses = {
+    Pending: 'availability-badge inactive',
+    'In Progress': 'availability-badge active',
+    Delivered: 'availability-badge buyer',
+    Completed: 'availability-badge active',
+    Cancelled: 'availability-badge inactive',
+};
 
 function UserProfilePage() {
     const { updateUser } = useAuth();
     const [profile, setProfile] = useState(null);
     const [buyerDashboard, setBuyerDashboard] = useState(null);
     const [error, setError] = useState('');
+    const [confirmingOrderId, setConfirmingOrderId] = useState('');
+
+    const getFallbackBuyerDashboard = useCallback(() => ({
+        postedJobs: [],
+        postedJobStats: { active: 0, pending: 0, completed: 0 },
+        hiredFreelancers: [],
+        reviewsAboutBuyer: [],
+        notifications: [],
+    }), []);
+
+    const loadBuyerDashboard = useCallback(async () => {
+        try {
+            const dashboardRes = await apiClient.get('/api/portfolio/me/buyer-dashboard');
+            setBuyerDashboard(dashboardRes.data);
+        } catch {
+            setBuyerDashboard(getFallbackBuyerDashboard());
+        }
+    }, [getFallbackBuyerDashboard]);
+
+    const handleConfirmDelivery = useCallback(async (orderId) => {
+        try {
+            setConfirmingOrderId(orderId);
+            setError('');
+            await apiClient.patch(`/api/orders/${orderId}/confirm`);
+            await loadBuyerDashboard();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to confirm delivery. Please try again.');
+        } finally {
+            setConfirmingOrderId('');
+        }
+    }, [loadBuyerDashboard]);
 
     useEffect(() => {
         const load = async () => {
@@ -33,26 +81,14 @@ function UserProfilePage() {
                 setProfile(data);
                 updateUser({ ...data, token: localStorage.getItem('unigig_token') });
                 if (!data.isStudentSeller) {
-                    try {
-                        const dashboardRes = await apiClient.get('/api/portfolio/me/buyer-dashboard');
-                        setBuyerDashboard(dashboardRes.data);
-                    } catch {
-                        // Do not fail the whole profile page if buyer extras fail.
-                        setBuyerDashboard({
-                            postedJobs: [],
-                            postedJobStats: { active: 0, pending: 0, completed: 0 },
-                            hiredFreelancers: [],
-                            reviewsAboutBuyer: [],
-                            notifications: [],
-                        });
-                    }
+                    await loadBuyerDashboard();
                 }
             } catch (err) {
                 setError(err.response?.data?.message || 'Failed to load profile. Please refresh and try again.');
             }
         };
         load();
-    }, [updateUser]);
+    }, [loadBuyerDashboard, updateUser]);
 
     if (error) return <div className="profile-page-light"><div className="page-wrap"><p className="text-error">{error}</p></div></div>;
     if (!profile) return <div className="profile-page-light"><div className="page-wrap"><p>Loading profile...</p></div></div>;
@@ -147,12 +183,95 @@ function UserProfilePage() {
                             {postedJobs.length ? (
                                 <div className="buyer-list">
                                     {postedJobs.slice(0, 5).map((job) => (
-                                        <div key={job.id} className="buyer-row">
-                                            <span>{job.title}</span>
-                                            <span className={`availability-badge ${job.status === 'Completed' ? 'active' : 'inactive'}`}>
-                                                {job.status}
-                                            </span>
-                                        </div>
+                                        <article
+                                            key={job.id}
+                                            className="rounded-2xl border border-[#ececff] bg-[#fafaff] p-4 space-y-4"
+                                        >
+                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                <div>
+                                                    <p className="text-sm font-bold text-[#2c2c44]">{job.title}</p>
+                                                    <p className="text-xs text-[#6a6981] mt-1">
+                                                        Ordered {formatDate(job.orderDate || job.createdAt)}
+                                                    </p>
+                                                </div>
+                                                <span className={buyerStatusClasses[job.status] || 'availability-badge inactive'}>
+                                                    {job.status}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                                <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Package</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44]">{job.packageName}</p>
+                                                </div>
+                                                <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Price</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44]">LKR {Number(job.price || 0).toLocaleString()}</p>
+                                                </div>
+                                                <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Delivery Time</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44] inline-flex items-center gap-2">
+                                                        <Clock3 size={14} />
+                                                        {job.deliveryTime}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-[#ececff] bg-white px-4 py-3">
+                                                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">
+                                                    Your Requirements
+                                                </p>
+                                                <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">
+                                                    {job.requirementsMessage || 'No additional requirements were provided.'}
+                                                </p>
+                                            </div>
+
+                                            {(job.status === 'Delivered' || job.status === 'Completed') && (
+                                                <div className="rounded-xl border border-[#dedbff] bg-[#f6f4ff] px-4 py-4 space-y-4">
+                                                    <div className="flex items-center gap-2 text-[#4a3fb9]">
+                                                        <ImageIcon size={16} />
+                                                        <p className="text-sm font-bold">Seller Delivery</p>
+                                                    </div>
+
+                                                    {job.deliveredImage ? (
+                                                        <img
+                                                            src={toImageUrl(job.deliveredImage)}
+                                                            alt={`${job.title} delivery preview`}
+                                                            className="w-full max-h-[240px] rounded-xl object-cover border border-white"
+                                                        />
+                                                    ) : null}
+
+                                                    <div>
+                                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">
+                                                            Delivery Note
+                                                        </p>
+                                                        <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">
+                                                            {job.deliveryNote || 'No delivery note was added for this order.'}
+                                                        </p>
+                                                    </div>
+
+                                                    <p className="text-xs text-[#6a6981]">
+                                                        Delivered on {formatDate(job.deliveredAt)}
+                                                    </p>
+
+                                                    {job.status === 'Delivered' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleConfirmDelivery(job.id)}
+                                                            disabled={confirmingOrderId === job.id}
+                                                            className="btn-primary seller-edit-btn"
+                                                        >
+                                                            <CheckCircle2 size={16} />
+                                                            {confirmingOrderId === job.id ? 'Confirming...' : 'Confirm Delivery'}
+                                                        </button>
+                                                    ) : (
+                                                        <p className="text-sm font-semibold text-[#17824c]">
+                                                            You already confirmed this delivery.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </article>
                                     ))}
                                 </div>
                             ) : (

@@ -81,6 +81,14 @@ const getBuyerDashboard = async (req, res) => {
             category: order.service?.category || 'General',
             status: order.status,
             createdAt: order.createdAt,
+            orderDate: order.orderDate || order.createdAt,
+            packageName: order.packageName || 'Standard',
+            price: Number(order.price || order.service?.price || 0),
+            deliveryTime: order.deliveryTime || '1 Week',
+            requirementsMessage: order.requirementsMessage || '',
+            deliveryNote: order.deliveryNote || '',
+            deliveredImage: order.deliveredImage || '',
+            deliveredAt: order.deliveredAt || null,
         }));
 
         const hiredFreelancersMap = new Map();
@@ -105,7 +113,7 @@ const getBuyerDashboard = async (req, res) => {
         }
 
         const statusCounts = {
-            active: postedJobs.filter((job) => ['In Progress'].includes(job.status)).length,
+            active: postedJobs.filter((job) => ['In Progress', 'Delivered'].includes(job.status)).length,
             pending: postedJobs.filter((job) => ['Pending'].includes(job.status)).length,
             completed: postedJobs.filter((job) => ['Completed'].includes(job.status)).length,
         };
@@ -121,6 +129,12 @@ const getBuyerDashboard = async (req, res) => {
             notifications.push({
                 type: 'messages',
                 message: `${statusCounts.active} collaboration(s) are currently in progress.`,
+            });
+        }
+        if (postedJobs.some((job) => job.status === 'Delivered')) {
+            notifications.push({
+                type: 'delivery',
+                message: 'A freelancer has delivered work and is waiting for your confirmation.',
             });
         }
         if (statusCounts.completed > 0) {
@@ -154,41 +168,17 @@ const getSellerEarnings = async (req, res) => {
             return res.status(403).json({ message: 'Only sellers can access earnings dashboard' });
         }
 
-        const sellerObjectId = new mongoose.Types.ObjectId(req.user._id);
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
 
-        const orders = await Order.aggregate([
-            { $match: { seller: sellerObjectId } },
-            {
-                $lookup: {
-                    from: 'services',
-                    localField: 'service',
-                    foreignField: '_id',
-                    as: 'serviceData',
-                },
-            },
-            {
-                $addFields: {
-                    orderAmount: {
-                        $ifNull: [{ $arrayElemAt: ['$serviceData.price', 0] }, 0],
-                    },
-                },
-            },
-            {
-                $project: {
-                    status: 1,
-                    orderAmount: 1,
-                    completedAt: 1,
-                    createdAt: 1,
-                },
-            },
-        ]);
+        const orders = await Order.find({ seller: req.user._id })
+            .select('status price completedAt createdAt')
+            .lean();
 
         const totalEarnings = orders
             .filter((order) => order.status === 'Completed')
-            .reduce((sum, order) => sum + Number(order.orderAmount || 0), 0);
+            .reduce((sum, order) => sum + Number(order.price || 0), 0);
 
         const monthlyEarnings = orders
             .filter(
@@ -196,11 +186,11 @@ const getSellerEarnings = async (req, res) => {
                     order.status === 'Completed' &&
                     new Date(order.completedAt || order.createdAt) >= startOfMonth
             )
-            .reduce((sum, order) => sum + Number(order.orderAmount || 0), 0);
+            .reduce((sum, order) => sum + Number(order.price || 0), 0);
 
         const pendingPayments = orders
-            .filter((order) => ['Pending', 'In Progress'].includes(order.status))
-            .reduce((sum, order) => sum + Number(order.orderAmount || 0), 0);
+            .filter((order) => ['Pending', 'In Progress', 'Delivered'].includes(order.status))
+            .reduce((sum, order) => sum + Number(order.price || 0), 0);
 
         res.json({
             totalEarnings,

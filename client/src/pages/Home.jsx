@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
     Search,
@@ -10,9 +9,7 @@ import {
     DollarSign,
     Clock,
     Tag,
-    User,
     ImagePlus,
-    Loader2,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -26,15 +23,35 @@ const categories = [
     { name: 'AI & Machine Learning', badge: 'NEW' },
 ];
 
+const benefits = [
+    {
+        icon: Shield,
+        title: 'Verified University Students',
+        description: 'Find skilled student freelancers backed by a university-focused marketplace you can trust.',
+        tone: 'purple',
+    },
+    {
+        icon: Zap,
+        title: 'Fast Delivery Guaranteed',
+        description: 'Move quickly with student talent built for quick turnarounds, demos, and deadline-driven work.',
+        tone: 'blue',
+    },
+    {
+        icon: DollarSign,
+        title: 'Affordable Student Pricing',
+        description: 'Launch projects with flexible budgets and rates that make sense for startups and campus teams.',
+        tone: 'teal',
+    },
+];
+
 const Home = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [services, setServices] = useState([]);
     const [loadingServices, setLoadingServices] = useState(true);
     const [activeCategory, setActiveCategory] = useState(null);
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const servicesSectionRef = useRef(null);
 
-    // Fetch services on mount
     useEffect(() => {
         fetchServices();
     }, []);
@@ -54,28 +71,35 @@ const Home = () => {
         }
     };
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        setActiveCategory(null);
-        fetchServices(searchQuery.trim());
+    const scrollToServices = () => {
+        servicesSectionRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+        });
     };
 
-    const handleCategoryClick = (categoryName) => {
+    const handleSearch = async (e) => {
+        e.preventDefault();
+        setActiveCategory(null);
+        await fetchServices(searchQuery.trim());
+        scrollToServices();
+    };
+
+    const handleCategoryClick = async (categoryName) => {
         if (activeCategory === categoryName) {
             setActiveCategory(null);
-            fetchServices();
+            await fetchServices();
         } else {
             setActiveCategory(categoryName);
             setSearchQuery('');
-            fetchServices('', categoryName);
+            await fetchServices('', categoryName);
         }
+        scrollToServices();
     };
 
     return (
         <div className="home-page-light">
-            {/* ═══ Hero Section ═══ */}
-            <div className="hero-section">
-                {/* Animated glow orbs */}
+            <section className="hero-section">
                 <div className="glow-orb glow-orb--purple"></div>
                 <div className="glow-orb glow-orb--teal"></div>
                 <div className="glow-orb glow-orb--pink"></div>
@@ -83,14 +107,11 @@ const Home = () => {
                 <div className="hero-container">
                     <div className="hero-content animate-fade-in-up">
                         <h1 className="hero-heading">
-                            Find the perfect
-                            <br />
-                            <span className="hero-heading-accent">student freelancer</span>
-                            <br />
+                            Find the perfect <span className="hero-heading-accent">student freelancer</span>
+                            <br className="hero-heading-break" />
                             for your project
                         </h1>
 
-                        {/* Search Bar */}
                         <form onSubmit={handleSearch} className="hero-search-wrapper">
                             <div className="hero-search-bar">
                                 <Search className="hero-search-icon" />
@@ -102,27 +123,19 @@ const Home = () => {
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                                 <button type="submit" className="hero-search-btn">
-                                    Search
+                                    <span>Search</span>
                                     <ArrowRight className="hero-search-btn-arrow" />
                                 </button>
                             </div>
                         </form>
 
-                        {/* Category Tags */}
                         <div className="hero-categories">
-                            <span className="hero-categories-label">Popular:</span>
                             <div className="hero-tags">
                                 {categories.map((cat) => (
-                                    <button
-                                        key={cat.name}
-                                        onClick={() => handleCategoryClick(cat.name)}
-                                        className={`hero-tag ${activeCategory === cat.name ? 'hero-tag--active' : ''
-                                            }`}
-                                    >
-                                        {cat.name}
+                                    <div key={cat.name} className="hero-tag-wrap">
                                         {cat.badge && (
                                             <span
-                                                className={`hero-tag-badge ${cat.badge === 'POPULAR'
+                                                className={`hero-tag-badge hero-tag-badge--floating ${cat.badge === 'POPULAR'
                                                     ? 'hero-tag-badge--popular'
                                                     : cat.badge === 'TRENDING'
                                                         ? 'hero-tag-badge--trending'
@@ -132,71 +145,57 @@ const Home = () => {
                                                 {cat.badge}
                                             </span>
                                         )}
-                                    </button>
+                                        <button
+                                            onClick={() => handleCategoryClick(cat.name)}
+                                            className={`hero-tag ${activeCategory === cat.name ? 'hero-tag--active' : ''
+                                                }`}
+                                        >
+                                            {cat.name}
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
-                    </div>
 
-                    {/* Trust Indicators */}
-                    <div className="hero-trust animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                        <div className="hero-trust-item">
-                            <div className="hero-trust-icon hero-trust-icon--purple">
-                                <Shield className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <div className="hero-trust-value">Verified</div>
-                                <div className="hero-trust-label">University Students</div>
-                            </div>
-                        </div>
-                        <div className="hero-trust-divider"></div>
-                        <div className="hero-trust-item">
-                            <div className="hero-trust-icon hero-trust-icon--green">
-                                <Zap className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <div className="hero-trust-value">Fast</div>
-                                <div className="hero-trust-label">Delivery Guaranteed</div>
-                            </div>
-                        </div>
-                        <div className="hero-trust-divider"></div>
-                        <div className="hero-trust-item">
-                            <div className="hero-trust-icon hero-trust-icon--blue">
-                                <DollarSign className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <div className="hero-trust-value">Affordable</div>
-                                <div className="hero-trust-label">Student-Friendly Rates</div>
-                            </div>
+                        <div className="hero-benefits animate-fade-in-up" style={{ animationDelay: '0.18s' }}>
+                            {benefits.map(({ icon: Icon, title, description, tone }) => (
+                                <article key={title} className="hero-benefit-card">
+                                    <div className={`hero-benefit-icon hero-benefit-icon--${tone}`}>
+                                        <Icon />
+                                    </div>
+                                    <h3 className="hero-benefit-title">{title}</h3>
+                                    <p className="hero-benefit-description">{description}</p>
+                                </article>
+                            ))}
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            {/* ═══ Service Grid Section ═══ */}
-            <div className="service-grid-section">
-                {/* Animated glow orbs */}
+            <section id="services" ref={servicesSectionRef} className="service-grid-section">
                 <div className="glow-orb glow-orb--purple"></div>
                 <div className="glow-orb glow-orb--teal"></div>
-                <div className="glow-orb glow-orb--pink"></div>
+
                 <div className="service-grid-container">
-                    {/* Section Header */}
                     <div className="service-grid-header animate-fade-in-up">
-                        <h2 className="text-3xl font-bold">
-                            {activeCategory ? (
-                                <>
-                                    <span className="gradient-text">{activeCategory}</span> Services
-                                </>
-                            ) : searchQuery ? (
-                                <>
-                                    Results for &quot;<span className="gradient-text">{searchQuery}</span>&quot;
-                                </>
-                            ) : (
-                                <>
-                                    Discover <span className="gradient-text">Services</span>
-                                </>
-                            )}
-                        </h2>
+                        <div>
+                            <span className="service-grid-kicker">Browse student services</span>
+                            <h2 className="service-grid-title">
+                                {activeCategory ? (
+                                    <>
+                                        <span className="gradient-text">{activeCategory}</span> Services
+                                    </>
+                                ) : searchQuery ? (
+                                    <>
+                                        Results for &quot;<span className="gradient-text">{searchQuery}</span>&quot;
+                                    </>
+                                ) : (
+                                    <>
+                                        Discover <span className="gradient-text">Services</span>
+                                    </>
+                                )}
+                            </h2>
+                        </div>
                         {(activeCategory || searchQuery) && (
                             <button
                                 onClick={() => {
@@ -204,16 +203,15 @@ const Home = () => {
                                     setSearchQuery('');
                                     fetchServices();
                                 }}
-                                className="text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-light)] font-medium transition-colors"
+                                className="service-grid-reset"
                             >
-                                ← Show all services
+                                Show all services
                             </button>
                         )}
                     </div>
 
-                    {/* Loading State */}
                     {loadingServices ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                                 <div key={i} className="service-card-skeleton">
                                     <div className="service-card-skeleton__image animate-shimmer" />
@@ -230,7 +228,6 @@ const Home = () => {
                             ))}
                         </div>
                     ) : services.length === 0 ? (
-                        /* Empty State */
                         <div className="glass-card p-16 text-center rounded-2xl animate-fade-in-up">
                             <div className="w-20 h-20 mx-auto rounded-2xl bg-[var(--color-primary)]/10 flex items-center justify-center mb-4">
                                 <Search className="w-10 h-10 text-[var(--color-primary)]" />
@@ -243,37 +240,46 @@ const Home = () => {
                             </p>
                         </div>
                     ) : (
-                        /* Service Cards Grid */
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {services.map((service, index) => (
-                                <div
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {services.map((service, index) => {
+                                const packagePrices = (service.packages || [])
+                                    .map((pkg) => Number(pkg?.price))
+                                    .filter((price) => Number.isFinite(price));
+                                const packageDeliveryDays = (service.packages || [])
+                                    .map((pkg) => Number(pkg?.deliveryDays))
+                                    .filter((days) => Number.isFinite(days) && days > 0);
+
+                                const cardPrice = Number(service.price) > 0
+                                    ? Number(service.price)
+                                    : (packagePrices.length ? Math.min(...packagePrices) : 0);
+                                const cardDelivery = service.deliveryTime || (packageDeliveryDays.length
+                                    ? `${Math.min(...packageDeliveryDays)} Day${Math.min(...packageDeliveryDays) === 1 ? '' : 's'}`
+                                    : '1 Week');
+
+                                return <div
                                     key={service._id}
                                     className="service-card animate-fade-in-up"
                                     style={{ animationDelay: `${index * 60}ms` }}
                                     onClick={() => navigate(`/service/${service._id}`)}
                                 >
-                                    {/* Thumbnail */}
                                     <div className="service-card__image">
                                         {service.coverImage ? (
                                             <img
                                                 src={`${API_BASE}${service.coverImage}`}
                                                 alt={service.title}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                className="w-full h-full object-cover transition-transform duration-500"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-accent)]/10">
                                                 <ImagePlus className="w-10 h-10 text-[var(--color-text-muted)]/30" />
                                             </div>
                                         )}
-                                        {/* Price Badge */}
-                                        <div className="service-card__price">
-                                            LKR {service.price?.toLocaleString()}
-                                        </div>
+                                        <span className="service-card__price">
+                                            LKR {cardPrice.toLocaleString()}
+                                        </span>
                                     </div>
 
-                                    {/* Card Body */}
                                     <div className="p-5">
-                                        {/* Seller Info */}
                                         <div className="flex items-center gap-2 mb-3">
                                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                                                 {service.seller?.name?.charAt(0).toUpperCase()}
@@ -283,12 +289,10 @@ const Home = () => {
                                             </span>
                                         </div>
 
-                                        {/* Title */}
                                         <h3 className="text-sm font-bold mb-3 line-clamp-2 leading-snug text-[var(--color-text)]">
                                             {service.title}
                                         </h3>
 
-                                        {/* Footer */}
                                         <div className="flex items-center justify-between pt-3 border-t border-white/5">
                                             <div className="flex items-center gap-1.5">
                                                 <Tag className="w-3 h-3 text-[var(--color-accent)]" />
@@ -298,16 +302,16 @@ const Home = () => {
                                             </div>
                                             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
                                                 <Clock className="w-3 h-3" />
-                                                <span className="text-[11px]">{service.deliveryTime}</span>
+                                                <span className="text-[11px]">{cardDelivery}</span>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                </div>;
+                            })}
                         </div>
                     )}
                 </div>
-            </div>
+            </section>
         </div>
     );
 };
