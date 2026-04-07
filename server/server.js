@@ -7,8 +7,13 @@ require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const userRoutes = require('./routes/userRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const socketIo = require('./socket');
+const http = require('http');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
 
 // Middleware
 app.use(cors());
@@ -22,6 +27,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/chats', chatRoutes);
 
 // Health check
 app.get('/', (req, res) => {
@@ -35,7 +41,7 @@ mongoose
     .connect(process.env.MONGO_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB');
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
         });
     })

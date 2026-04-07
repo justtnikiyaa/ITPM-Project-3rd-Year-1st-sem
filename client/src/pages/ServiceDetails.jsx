@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import {
     Clock,
     Tag,
@@ -20,9 +21,12 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const ServiceDetails = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
+    const { user } = useAuth();
     const [service, setService] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [contacting, setContacting] = useState(false);
 
     useEffect(() => {
         const fetchService = async () => {
@@ -64,6 +68,28 @@ const ServiceDetails = () => {
             </div>
         );
     }
+
+    const handleContactSeller = async () => {
+        if (!user) {
+            navigate('/login');
+            return;
+        }
+        
+        try {
+            setContacting(true);
+            const res = await axios.post(`${API_BASE}/api/chats`, {
+                serviceId: service._id,
+                buyerId: user._id,
+                sellerId: service.seller._id
+            });
+            navigate('/chat', { state: { activeChatId: res.data._id } });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to start chat. Please try again.");
+        } finally {
+            setContacting(false);
+        }
+    };
 
     return (
         <div className="home-page-light min-h-screen pt-28 pb-20">
@@ -189,9 +215,13 @@ const ServiceDetails = () => {
                                     Order Now
                                 </button>
 
-                                <button className="w-full py-5 rounded-[1.5rem] border-2 border-indigo-50 text-indigo-600 font-black hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-3">
+                                <button 
+                                    onClick={handleContactSeller}
+                                    disabled={contacting}
+                                    className="w-full py-5 rounded-[1.5rem] border-2 border-indigo-50 text-indigo-600 font-black hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
                                     <MessageCircle className="w-6 h-6" />
-                                    Contact Seller
+                                    {contacting ? 'Starting...' : 'Contact Seller'}
                                 </button>
 
                                 <p className="text-center text-xs text-gray-400 mt-8 font-medium">
