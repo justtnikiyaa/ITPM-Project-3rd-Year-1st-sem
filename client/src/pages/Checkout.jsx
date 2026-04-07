@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ChevronRight, CreditCard, Download, Landmark, ShieldCheck, ShoppingCart, Sparkles } from 'lucide-react';
+import { ChevronRight, CreditCard, Download, Landmark, ShieldCheck, ShoppingCart, Sparkles, Upload, X, FileText, CalendarDays, Building2, User, Hash, Banknote, AlertCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +36,55 @@ const Checkout = () => {
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCVC, setCardCVC] = useState('');
     const [bankReference, setBankReference] = useState('');
+    const [bankAccountHolder, setBankAccountHolder] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [transferAmount, setTransferAmount] = useState('');
+    const [transferDate, setTransferDate] = useState('');
+    const [bankSlip, setBankSlip] = useState(null);
+    const [bankSlipPreview, setBankSlipPreview] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const bankSlipInputRef = useRef(null);
+    const [touched, setTouched] = useState({});
+
+    const handleBlur = (field) => setTouched((prev) => ({ ...prev, [field]: true }));
+
+    // --- Field-level validation ---
+    const fieldErrors = useMemo(() => {
+        const e = {};
+        // Card fields
+        if (cardName.length > 0 && cardName.trim().length < 2) e.cardName = 'Name must be at least 2 characters.';
+        if (cardNumber.length > 0 && cardNumber.replace(/\s/g, '').length < 16) e.cardNumber = 'Enter a valid 16-digit card number.';
+        if (cardExpiry.length > 0 && !/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry)) e.cardExpiry = 'Use MM/YY format.';
+        if (cardCVC.length > 0 && cardCVC.length < 3) e.cardCVC = 'CVC must be 3-4 digits.';
+        // Bank fields
+        if (bankAccountHolder.length > 0 && !/^[A-Za-z\s.'-]+$/.test(bankAccountHolder)) e.bankAccountHolder = 'Name can only contain letters and spaces.';
+        else if (bankAccountHolder.length > 0 && bankAccountHolder.trim().length < 2) e.bankAccountHolder = 'Name must be at least 2 characters.';
+        if (bankName.length > 0 && !/^[A-Za-z\s.&'-]+$/.test(bankName)) e.bankName = 'Enter a valid bank name.';
+        if (bankReference.length > 0 && bankReference.trim().length < 4) e.bankReference = 'Reference must be at least 4 characters.';
+        if (transferAmount.length > 0) {
+            const amt = Number(transferAmount);
+            if (isNaN(amt) || amt <= 0) e.transferAmount = 'Enter a valid positive amount.';
+            else if (amt > 10000000) e.transferAmount = 'Amount seems too large. Please verify.';
+        }
+        if (transferDate) {
+            const picked = new Date(transferDate);
+            const today = new Date(); today.setHours(23, 59, 59, 999);
+            if (picked > today) e.transferDate = 'Transfer date cannot be in the future.';
+        }
+        return e;
+    }, [cardName, cardNumber, cardExpiry, cardCVC, bankAccountHolder, bankName, bankReference, transferAmount, transferDate]);
+
+    const inputClass = (field) =>
+        `w-full bg-[#f8fafc] border rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 transition-all ${
+            touched[field] && fieldErrors[field]
+                ? 'border-red-400 focus:ring-red-200/60 focus:border-red-400'
+                : 'border-gray-200/80 focus:ring-indigo-500/20 focus:border-indigo-400'
+        }`;
+
+    const FieldError = ({ field }) =>
+        touched[field] && fieldErrors[field] ? (
+            <p className="mt-1.5 text-[11px] font-semibold text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{fieldErrors[field]}</p>
+        ) : null;
 
     useEffect(() => {
         const fetchService = async () => {
@@ -83,7 +132,7 @@ const Checkout = () => {
         cardNumber.replace(/\s/g, '').length >= 16 &&
         /^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry) &&
         cardCVC.length >= 3;
-    const isBankValid = bankReference.trim().length >= 4;
+    const isBankValid = bankReference.trim().length >= 4 && bankAccountHolder.trim().length >= 2 && /^[A-Za-z\s.'-]+$/.test(bankAccountHolder) && !!bankSlip && Object.keys(fieldErrors).filter(k => ['bankAccountHolder','bankName','bankReference','transferAmount','transferDate'].includes(k)).length === 0;
     const isReadyToSubmit =
         !!selectedPackage &&
         requirements.trim().length > 0 &&
@@ -100,6 +149,38 @@ const Checkout = () => {
         if (digits.length > 2) digits = `${digits.slice(0, 2)}/${digits.slice(2)}`;
         setCardExpiry(digits);
     };
+
+    const handleBankSlipChange = (file) => {
+        if (!file) return;
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            setError('Please upload a valid bank slip (JPG, PNG, WEBP, or PDF).');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setError('Bank slip must be under 5MB.');
+            return;
+        }
+        setBankSlip(file);
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onloadend = () => setBankSlipPreview(reader.result);
+            reader.readAsDataURL(file);
+        } else {
+            setBankSlipPreview(null);
+        }
+    };
+
+    const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+    const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleBankSlipChange(file);
+    };
+
+    const removeBankSlip = () => { setBankSlip(null); setBankSlipPreview(null); if (bankSlipInputRef.current) bankSlipInputRef.current.value = ''; };
 
     const handlePlaceOrder = async () => {
         if (!selectedPackage || requirements.trim().length === 0 || orderBlockedReason) {
@@ -276,17 +357,145 @@ const Checkout = () => {
                             <div className="mt-8 pt-8 border-t border-gray-100/80">
                                 {paymentMethod === 'card' ? (
                                     <div className="space-y-4">
-                                        <div><label className="block text-xs font-bold text-gray-600 mb-2">Cardholder Name</label><input type="text" value={cardName} onChange={(e) => setCardName(e.target.value)} placeholder="John Doe" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
-                                        <div><label className="block text-xs font-bold text-gray-600 mb-2">Card Number</label><input type="text" value={cardNumber} onChange={handleCardNumberChange} placeholder="0000 0000 0000 0000" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-2">Cardholder Name</label>
+                                            <input type="text" value={cardName} onChange={(e) => setCardName(e.target.value)} onBlur={() => handleBlur('cardName')} placeholder="John Doe" className={inputClass('cardName')} />
+                                            <FieldError field="cardName" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-2">Card Number</label>
+                                            <input type="text" value={cardNumber} onChange={handleCardNumberChange} onBlur={() => handleBlur('cardNumber')} placeholder="0000 0000 0000 0000" className={inputClass('cardNumber')} />
+                                            <FieldError field="cardNumber" />
+                                        </div>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div><label className="block text-xs font-bold text-gray-600 mb-2">Expiry Date</label><input type="text" value={cardExpiry} onChange={handleCardExpiryChange} placeholder="MM/YY" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
-                                            <div><label className="block text-xs font-bold text-gray-600 mb-2">CVC</label><input type="text" value={cardCVC} onChange={(e) => setCardCVC(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="123" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-2">Expiry Date</label>
+                                                <input type="text" value={cardExpiry} onChange={handleCardExpiryChange} onBlur={() => handleBlur('cardExpiry')} placeholder="MM/YY" className={inputClass('cardExpiry')} />
+                                                <FieldError field="cardExpiry" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-2">CVC</label>
+                                                <input type="text" value={cardCVC} onChange={(e) => setCardCVC(e.target.value.replace(/\D/g, '').slice(0, 4))} onBlur={() => handleBlur('cardCVC')} placeholder="123" className={inputClass('cardCVC')} />
+                                                <FieldError field="cardCVC" />
+                                            </div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="space-y-4">
-                                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">Use any transfer reference you want for this demo flow. The order will still be created in UniGig and visible to the seller.</div>
-                                        <div><label className="block text-xs font-bold text-gray-600 mb-2">Transfer Reference</label><input type="text" value={bankReference} onChange={(e) => setBankReference(e.target.value)} placeholder="TRX-4582" className="w-full bg-[#f8fafc] border border-gray-200/80 rounded-xl p-3.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400" /></div>
+                                    <div className="space-y-5">
+                                        {/* Bank Account Details */}
+                                        <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-violet-50/60 p-5">
+                                            <h4 className="text-[13px] font-black text-indigo-700 mb-3 flex items-center gap-2"><Building2 className="w-4 h-4" />UniGig Bank Account Details</h4>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between text-[12px]"><span className="text-gray-500 font-medium">Bank</span><span className="text-gray-800 font-bold">Commercial Bank of Ceylon</span></div>
+                                                <div className="flex justify-between text-[12px]"><span className="text-gray-500 font-medium">Branch</span><span className="text-gray-800 font-bold">Colombo Main Branch</span></div>
+                                                <div className="flex justify-between text-[12px]"><span className="text-gray-500 font-medium">Account Name</span><span className="text-gray-800 font-bold">UniGig (Pvt) Ltd</span></div>
+                                                <div className="flex justify-between text-[12px]"><span className="text-gray-500 font-medium">Account Number</span><span className="text-gray-800 font-bold font-mono">8012 4500 3217</span></div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 px-5 py-3.5 text-[12px] text-amber-800 font-medium flex items-start gap-2.5">
+                                            <Banknote className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                            <span>Please make your transfer to the account above and fill in details below. Attach a clear photo or scan of your bank slip for verification.</span>
+                                        </div>
+
+                                        {/* Transfer Details Form */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-gray-400" />Account Holder Name <span className="text-red-500">*</span></label>
+                                                <input type="text" value={bankAccountHolder} onChange={(e) => setBankAccountHolder(e.target.value)} onBlur={() => handleBlur('bankAccountHolder')} placeholder="e.g. Kamal Perera" className={inputClass('bankAccountHolder')} />
+                                                <FieldError field="bankAccountHolder" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-gray-400" />Your Bank Name</label>
+                                                <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} onBlur={() => handleBlur('bankName')} placeholder="e.g. Bank of Ceylon" className={inputClass('bankName')} />
+                                                <FieldError field="bankName" />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1.5"><Hash className="w-3.5 h-3.5 text-gray-400" />Transfer Reference <span className="text-red-500">*</span></label>
+                                                <input type="text" value={bankReference} onChange={(e) => setBankReference(e.target.value)} onBlur={() => handleBlur('bankReference')} placeholder="TRX-4582" className={inputClass('bankReference')} />
+                                                <FieldError field="bankReference" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1.5"><Banknote className="w-3.5 h-3.5 text-gray-400" />Amount Transferred</label>
+                                                <input type="text" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value.replace(/[^0-9.]/g, ''))} onBlur={() => handleBlur('transferAmount')} placeholder={`LKR ${Number(selectedPackage?.price || 0).toLocaleString()}`} className={inputClass('transferAmount')} />
+                                                <FieldError field="transferAmount" />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5 text-gray-400" />Transfer Date</label>
+                                            <input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} onBlur={() => handleBlur('transferDate')} className={inputClass('transferDate')} />
+                                            <FieldError field="transferDate" />
+                                        </div>
+
+                                        {/* Bank Slip Upload */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-2 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-gray-400" />Attach Bank Slip <span className="text-red-500">*</span></label>
+                                            {!bankSlip ? (
+                                                <div
+                                                    onClick={() => bankSlipInputRef.current?.click()}
+                                                    onDragOver={handleDragOver}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={handleDrop}
+                                                    className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 ${
+                                                        isDragging
+                                                            ? 'border-indigo-400 bg-indigo-50/60 scale-[1.01]'
+                                                            : 'border-gray-200 bg-[#f8fafc] hover:border-indigo-300 hover:bg-indigo-50/30'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        ref={bankSlipInputRef}
+                                                        type="file"
+                                                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                                                        onChange={(e) => handleBankSlipChange(e.target.files?.[0])}
+                                                        className="hidden"
+                                                    />
+                                                    <div className="flex flex-col items-center gap-3">
+                                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                                                            isDragging ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'
+                                                        }`}>
+                                                            <Upload className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[13px] font-bold text-gray-700">
+                                                                {isDragging ? 'Drop your bank slip here' : 'Click to upload or drag & drop'}
+                                                            </p>
+                                                            <p className="text-[11px] text-gray-400 mt-1 font-medium">JPG, PNG, WEBP or PDF — Max 5MB</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="rounded-2xl border border-gray-200 bg-[#f8fafc] p-4">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                                                <FileText className="w-4 h-4" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[13px] font-bold text-gray-800 truncate max-w-[200px]">{bankSlip.name}</p>
+                                                                <p className="text-[11px] text-gray-400 font-medium">{(bankSlip.size / 1024).toFixed(1)} KB</p>
+                                                            </div>
+                                                        </div>
+                                                        <button type="button" onClick={removeBankSlip} className="w-8 h-8 rounded-full bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                    {bankSlipPreview && (
+                                                        <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+                                                            <img src={bankSlipPreview} alt="Bank slip preview" className="w-full max-h-[220px] object-contain" />
+                                                        </div>
+                                                    )}
+                                                    {!bankSlipPreview && bankSlip.type === 'application/pdf' && (
+                                                        <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center justify-center gap-2 text-gray-500 text-[12px] font-medium">
+                                                            <FileText className="w-4 h-4" /> PDF file attached
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
