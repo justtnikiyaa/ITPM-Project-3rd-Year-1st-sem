@@ -20,6 +20,14 @@ const chatSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Message',
         default: null,
+    },
+    buyerNote: {
+        type: String,
+        default: ""
+    },
+    sellerNote: {
+        type: String,
+        default: ""
     }
 }, { timestamps: true });
 

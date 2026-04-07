@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 
-const ChatList = ({ onSelectChat, activeChatId, initialChatId }) => {
+const ChatList = ({ onSelectChat, activeChatId, initialChatId, refreshTrigger }) => {
     const { user } = useAuth();
     const { onlineUsers } = useSocket();
     const [chats, setChats] = useState([]);
@@ -31,7 +31,7 @@ const ChatList = ({ onSelectChat, activeChatId, initialChatId }) => {
             }
         };
         fetchChats();
-    }, [user]);
+    }, [user, refreshTrigger]);
 
     if (loading) return <div className="p-4 text-center text-gray-500">Loading chats...</div>;
 
@@ -46,7 +46,9 @@ const ChatList = ({ onSelectChat, activeChatId, initialChatId }) => {
             </div>
             <div className="overflow-y-auto flex-1">
                 {chats.map((chat) => {
-                    const otherUser = chat.buyer?._id === user._id ? chat.seller : chat.buyer;
+                    const isBuyer = chat.buyer?._id === user._id;
+                    const otherUser = isBuyer ? chat.seller : chat.buyer;
+                    const myNote = isBuyer ? chat.buyerNote : chat.sellerNote;
                     const isOnline = otherUser ? onlineUsers.includes(otherUser._id) : false;
                     const isSelected = activeChatId === chat._id;
 
@@ -58,7 +60,7 @@ const ChatList = ({ onSelectChat, activeChatId, initialChatId }) => {
                         >
                             <div className="relative">
                                 <img
-                                    src={otherUser?.profilePic || 'https://via.placeholder.com/40'}
+                                    src={otherUser?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser?.name || 'User')}&background=E0E7FF&color=3730A3&bold=true`}
                                     alt={otherUser?.name || 'User'}
                                     className="w-10 h-10 rounded-full object-cover bg-gray-200"
                                 />
@@ -67,9 +69,11 @@ const ChatList = ({ onSelectChat, activeChatId, initialChatId }) => {
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-gray-800 truncate">{otherUser?.name || 'Unknown User'}</h4>
-                                <p className="text-sm text-gray-500 truncate">
-                                    {chat.lastMessage?.text || "Started a chat"}
+                                <div className="flex justify-between items-center">
+                                    <h4 className="font-semibold text-gray-800 truncate">{otherUser?.name || 'Unknown User'}</h4>
+                                </div>
+                                <p className={`text-sm truncate ${myNote ? 'text-indigo-600 font-medium' : 'text-gray-500'}`}>
+                                    {myNote ? `Note: ${myNote}` : (chat.lastMessage?.text || "Started a chat")}
                                 </p>
                             </div>
                         </div>

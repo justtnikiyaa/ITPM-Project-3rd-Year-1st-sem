@@ -86,3 +86,27 @@ exports.getChatMessages = async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 };
+
+exports.updateChatNote = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+        const { userId, note } = req.body;
+
+        const chat = await Chat.findById(chatId);
+        if (!chat) return res.status(404).json({ message: 'Chat not found' });
+
+        if (chat.buyer.toString() === userId) {
+            chat.buyerNote = note;
+        } else if (chat.seller.toString() === userId) {
+            chat.sellerNote = note;
+        } else {
+            return res.status(403).json({ message: 'User not part of this chat' });
+        }
+
+        await chat.save();
+        res.status(200).json(chat);
+    } catch (error) {
+        console.error("Error updateChatNote:", error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
