@@ -14,6 +14,8 @@ import EditProfilePage from './pages/EditProfilePage';
 import SellerPortfolioPage from './pages/SellerPortfolioPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Checkout from './pages/Checkout';
+import PostJob from './pages/PostJob';
+import JobsPage from './pages/JobsPage';
 
 function App() {
   return (
@@ -33,6 +35,8 @@ function App() {
           <Route path="/profile/edit" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
           <Route path="/portfolio/:sellerId" element={<SellerPortfolioPage />} />
           <Route path="/checkout/:id" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+          <Route path="/jobs" element={<ProtectedRoute><JobsPage /></ProtectedRoute>} />
+          <Route path="/jobs/create" element={<ProtectedRoute><PostJob /></ProtectedRoute>} />
         </Routes>
       </Router>
     </AuthProvider>

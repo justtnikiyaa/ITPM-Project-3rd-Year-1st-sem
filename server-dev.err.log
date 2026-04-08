@@ -1,0 +1,14 @@
+❌ Port 5000 is already in use.
+❌ Port 5000 is already in use.
+❌ Port 5000 is already in use.
+Error: Only image files are allowed
+    at fileFilter (C:\ITPM-Project-3rd-Year-1st-sem\server\routes\orderRoutes.js:35:12)
+    at wrappedFileFilter (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\multer\index.js:44:7)
+    at Multipart.<anonymous> (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\multer\lib\make-middleware.js:109:7)
+    at Multipart.emit (node:events:508:28)
+    at HeaderParser.cb (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\busboy\lib\types\multipart.js:358:14)
+    at HeaderParser.push (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\busboy\lib\types\multipart.js:162:20)
+    at SBMH.ssCb [as _cb] (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\busboy\lib\types\multipart.js:394:37)
+    at feed (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\streamsearch\lib\sbmh.js:248:10)
+    at SBMH.push (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\streamsearch\lib\sbmh.js:104:16)
+    at Multipart._write (C:\ITPM-Project-3rd-Year-1st-sem\server\node_modules\busboy\lib\types\multipart.js:567:19)

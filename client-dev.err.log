@@ -1,0 +1,21 @@
+[2m9:34:19 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/portfolio/me/earnings[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+[2m9:34:19 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/services/my[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+[2m9:34:19 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/orders/seller[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+[2m9:35:00 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/services/my[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+[2m9:35:00 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/portfolio/me/earnings[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+[2m9:35:00 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/orders/seller[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)

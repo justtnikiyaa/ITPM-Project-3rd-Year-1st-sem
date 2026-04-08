@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import apiClient from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -13,6 +13,7 @@ import {
     Mail,
     PenSquare,
     Sparkles,
+    Trash2,
     UserCheck,
     Users2,
     Wallet,
@@ -29,7 +30,9 @@ const formatDate = (value) =>
               day: 'numeric',
           })
         : 'N/A';
+
 const buyerStatusClasses = {
+    Open: 'availability-badge buyer',
     Pending: 'availability-badge inactive',
     'In Progress': 'availability-badge active',
     Delivered: 'availability-badge buyer',
@@ -39,18 +42,27 @@ const buyerStatusClasses = {
 
 function UserProfilePage() {
     const { updateUser } = useAuth();
+    const location = useLocation();
     const [profile, setProfile] = useState(null);
     const [buyerDashboard, setBuyerDashboard] = useState(null);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(location.state?.jobSuccessMessage || '');
     const [confirmingOrderId, setConfirmingOrderId] = useState('');
+    const [jobStatusUpdatingId, setJobStatusUpdatingId] = useState('');
+    const [deletingJobId, setDeletingJobId] = useState('');
+    const [applicationUpdatingId, setApplicationUpdatingId] = useState('');
 
-    const getFallbackBuyerDashboard = useCallback(() => ({
-        postedJobs: [],
-        postedJobStats: { active: 0, pending: 0, completed: 0 },
-        hiredFreelancers: [],
-        reviewsAboutBuyer: [],
-        notifications: [],
-    }), []);
+    const getFallbackBuyerDashboard = useCallback(
+        () => ({
+            postedJobs: [],
+            placedOrders: [],
+            postedJobStats: { active: 0, pending: 0, completed: 0 },
+            hiredFreelancers: [],
+            reviewsAboutBuyer: [],
+            notifications: [],
+        }),
+        []
+    );
 
     const loadBuyerDashboard = useCallback(async () => {
         try {
@@ -66,11 +78,56 @@ function UserProfilePage() {
             setConfirmingOrderId(orderId);
             setError('');
             await apiClient.patch(`/api/orders/${orderId}/confirm`);
+            setSuccess('Delivery confirmed successfully.');
             await loadBuyerDashboard();
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to confirm delivery. Please try again.');
         } finally {
             setConfirmingOrderId('');
+        }
+    }, [loadBuyerDashboard]);
+
+    const handleUpdateJobStatus = useCallback(async (jobId, status) => {
+        try {
+            setJobStatusUpdatingId(jobId);
+            setError('');
+            await apiClient.patch(`/api/jobs/${jobId}/status`, { status });
+            setSuccess('Job status updated successfully.');
+            await loadBuyerDashboard();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update job status.');
+        } finally {
+            setJobStatusUpdatingId('');
+        }
+    }, [loadBuyerDashboard]);
+
+    const handleDeleteJob = useCallback(async (jobId) => {
+        if (!window.confirm('Delete this job post?')) return;
+
+        try {
+            setDeletingJobId(jobId);
+            setError('');
+            await apiClient.delete(`/api/jobs/${jobId}`);
+            setSuccess('Job deleted successfully.');
+            await loadBuyerDashboard();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to delete job.');
+        } finally {
+            setDeletingJobId('');
+        }
+    }, [loadBuyerDashboard]);
+
+    const handleApplicationStatus = useCallback(async (applicationId, status) => {
+        try {
+            setApplicationUpdatingId(applicationId);
+            setError('');
+            await apiClient.patch(`/api/applications/${applicationId}/status`, { status });
+            setSuccess(`Application ${status.toLowerCase()} successfully.`);
+            await loadBuyerDashboard();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update application status.');
+        } finally {
+            setApplicationUpdatingId('');
         }
     }, [loadBuyerDashboard]);
 
@@ -90,11 +147,12 @@ function UserProfilePage() {
         load();
     }, [loadBuyerDashboard, updateUser]);
 
-    if (error) return <div className="profile-page-light"><div className="page-wrap"><p className="text-error">{error}</p></div></div>;
+    if (error && !profile) return <div className="profile-page-light"><div className="page-wrap"><p className="text-error">{error}</p></div></div>;
     if (!profile) return <div className="profile-page-light"><div className="page-wrap"><p>Loading profile...</p></div></div>;
 
     if (!profile.isStudentSeller) {
         const postedJobs = buyerDashboard?.postedJobs || [];
+        const placedOrders = buyerDashboard?.placedOrders || [];
         const hiredFreelancers = buyerDashboard?.hiredFreelancers || [];
         const notifications = buyerDashboard?.notifications || [];
         const reviewsAboutBuyer = buyerDashboard?.reviewsAboutBuyer || [];
@@ -147,9 +205,20 @@ function UserProfilePage() {
                                 'I hire reliable freelancers for quality student-focused projects in design, tech, and content.'}
                         </p>
 
+                        {success ? (
+                            <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
+                                {success}
+                            </div>
+                        ) : null}
+                        {error ? (
+                            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700">
+                                {error}
+                            </div>
+                        ) : null}
+
                         <div className="buyer-quick-stats">
                             <div><strong>{postedJobStats.active}</strong><span>Active Jobs</span></div>
-                            <div><strong>{postedJobStats.pending}</strong><span>Pending Jobs</span></div>
+                            <div><strong>{postedJobStats.pending}</strong><span>Open Jobs</span></div>
                             <div><strong>{postedJobStats.completed}</strong><span>Completed Jobs</span></div>
                         </div>
 
@@ -183,16 +252,11 @@ function UserProfilePage() {
                             {postedJobs.length ? (
                                 <div className="buyer-list">
                                     {postedJobs.slice(0, 5).map((job) => (
-                                        <article
-                                            key={job.id}
-                                            className="rounded-2xl border border-[#ececff] bg-[#fafaff] p-4 space-y-4"
-                                        >
+                                        <article key={job.id} className="rounded-2xl border border-[#ececff] bg-[#fafaff] p-4 space-y-4">
                                             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                                 <div>
                                                     <p className="text-sm font-bold text-[#2c2c44]">{job.title}</p>
-                                                    <p className="text-xs text-[#6a6981] mt-1">
-                                                        Ordered {formatDate(job.orderDate || job.createdAt)}
-                                                    </p>
+                                                    <p className="text-xs text-[#6a6981] mt-1">Posted {formatDate(job.createdAt)}</p>
                                                 </div>
                                                 <span className={buyerStatusClasses[job.status] || 'availability-badge inactive'}>
                                                     {job.status}
@@ -201,73 +265,218 @@ function UserProfilePage() {
 
                                             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                                                 <div className="rounded-xl border border-white bg-white px-3 py-3">
-                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Package</p>
-                                                    <p className="text-sm font-semibold text-[#2c2c44]">{job.packageName}</p>
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Category</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44]">{job.category}</p>
                                                 </div>
                                                 <div className="rounded-xl border border-white bg-white px-3 py-3">
-                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Price</p>
-                                                    <p className="text-sm font-semibold text-[#2c2c44]">LKR {Number(job.price || 0).toLocaleString()}</p>
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Budget</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44]">LKR {Number(job.budget || 0).toLocaleString()}</p>
                                                 </div>
                                                 <div className="rounded-xl border border-white bg-white px-3 py-3">
                                                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Delivery Time</p>
                                                     <p className="text-sm font-semibold text-[#2c2c44] inline-flex items-center gap-2">
                                                         <Clock3 size={14} />
-                                                        {job.deliveryTime}
+                                                        {job.deliveryTime} Days
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {job.skills?.length ? (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {job.skills.map((skill) => (
+                                                        <span key={`${job.id}-${skill}`} className="portfolio-skill-pill">
+                                                            {skill}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : null}
+
+                                            <div className="rounded-xl border border-[#ececff] bg-white px-4 py-3">
+                                                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">Job Description</p>
+                                                <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">{job.description}</p>
+                                            </div>
+
+                                            {job.requirements ? (
+                                                <div className="rounded-xl border border-[#ececff] bg-white px-4 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">Additional Requirements</p>
+                                                    <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">{job.requirements}</p>
+                                                </div>
+                                            ) : null}
+
+                                            <div className="rounded-xl border border-[#ececff] bg-white px-4 py-4">
+                                                <div className="flex items-center justify-between gap-3 mb-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad]">Applications</p>
+                                                    <span className="text-xs font-semibold text-[#6a6981]">
+                                                        {job.applications?.length || 0} received
+                                                    </span>
+                                                </div>
+
+                                                {job.applications?.length ? (
+                                                    <div className="buyer-list">
+                                                        {job.applications.map((application) => (
+                                                            <div key={application.id} className="rounded-2xl border border-[#ececff] bg-[#fafaff] p-4 space-y-3">
+                                                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                                    <div>
+                                                                        <p className="text-sm font-bold text-[#2c2c44]">
+                                                                            {application.seller?.name || 'Seller'}
+                                                                        </p>
+                                                                        <p className="text-xs text-[#6a6981] mt-1">
+                                                                            Applied {formatDate(application.createdAt)}
+                                                                        </p>
+                                                                    </div>
+                                                                    <span className={buyerStatusClasses[application.status] || 'availability-badge inactive'}>
+                                                                        {application.status}
+                                                                    </span>
+                                                                </div>
+
+                                                                <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">
+                                                                    {application.message}
+                                                                </p>
+
+                                                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                                    <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Proposed Price</p>
+                                                                        <p className="text-sm font-semibold text-[#2c2c44]">LKR {Number(application.proposedPrice || 0).toLocaleString()}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Delivery Time</p>
+                                                                        <p className="text-sm font-semibold text-[#2c2c44]">{application.deliveryTime} Days</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex flex-col sm:flex-row gap-3">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleApplicationStatus(application.id, 'Accepted')}
+                                                                        disabled={applicationUpdatingId === application.id || application.status === 'Accepted'}
+                                                                        className="btn-primary seller-edit-btn inline-flex items-center justify-center gap-2"
+                                                                    >
+                                                                        <CheckCircle2 size={16} />
+                                                                        {applicationUpdatingId === application.id ? 'Saving...' : application.status === 'Accepted' ? 'Accepted' : 'Accept'}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleApplicationStatus(application.id, 'Rejected')}
+                                                                        disabled={applicationUpdatingId === application.id || application.status === 'Rejected'}
+                                                                        className="btn-secondary seller-edit-btn inline-flex items-center justify-center gap-2"
+                                                                    >
+                                                                        Reject
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-[#6a6981]">No applications yet for this job.</p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                <select
+                                                    value={job.status}
+                                                    onChange={(event) => handleUpdateJobStatus(job.id, event.target.value)}
+                                                    disabled={jobStatusUpdatingId === job.id}
+                                                    className="rounded-xl border border-[#d8d7f0] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                                                >
+                                                    {['Open', 'In Progress', 'Completed', 'Cancelled'].map((status) => (
+                                                        <option key={status} value={status}>{status}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteJob(job.id)}
+                                                    disabled={deletingJobId === job.id}
+                                                    className="btn-secondary seller-edit-btn inline-flex items-center justify-center gap-2"
+                                                >
+                                                    <Trash2 size={16} />
+                                                    {deletingJobId === job.id ? 'Deleting...' : 'Delete Job'}
+                                                </button>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p>No job listings yet. Start by posting your first job.</p>
+                            )}
+                        </div>
+
+                        <div className="profile-section buyer-wide-card">
+                            <h4><ImageIcon size={16} />Placed Orders</h4>
+                            {placedOrders.length ? (
+                                <div className="buyer-list">
+                                    {placedOrders.slice(0, 4).map((order) => (
+                                        <article key={order.id} className="rounded-2xl border border-[#ececff] bg-[#fafaff] p-4 space-y-4">
+                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                <div>
+                                                    <p className="text-sm font-bold text-[#2c2c44]">{order.title}</p>
+                                                    <p className="text-xs text-[#6a6981] mt-1">Ordered {formatDate(order.orderDate || order.createdAt)}</p>
+                                                </div>
+                                                <span className={buyerStatusClasses[order.status] || 'availability-badge inactive'}>
+                                                    {order.status}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                                <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Package</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44]">{order.packageName}</p>
+                                                </div>
+                                                <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Price</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44]">LKR {Number(order.price || 0).toLocaleString()}</p>
+                                                </div>
+                                                <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-1">Delivery Time</p>
+                                                    <p className="text-sm font-semibold text-[#2c2c44] inline-flex items-center gap-2">
+                                                        <Clock3 size={14} />
+                                                        {order.deliveryTime}
                                                     </p>
                                                 </div>
                                             </div>
 
                                             <div className="rounded-xl border border-[#ececff] bg-white px-4 py-3">
-                                                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">
-                                                    Your Requirements
-                                                </p>
+                                                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">Your Requirements</p>
                                                 <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">
-                                                    {job.requirementsMessage || 'No additional requirements were provided.'}
+                                                    {order.requirementsMessage || 'No additional requirements were provided.'}
                                                 </p>
                                             </div>
 
-                                            {(job.status === 'Delivered' || job.status === 'Completed') && (
+                                            {(order.status === 'Delivered' || order.status === 'Completed') && (
                                                 <div className="rounded-xl border border-[#dedbff] bg-[#f6f4ff] px-4 py-4 space-y-4">
                                                     <div className="flex items-center gap-2 text-[#4a3fb9]">
                                                         <ImageIcon size={16} />
                                                         <p className="text-sm font-bold">Seller Delivery</p>
                                                     </div>
 
-                                                    {job.deliveredImage ? (
+                                                    {order.deliveredImage ? (
                                                         <img
-                                                            src={toImageUrl(job.deliveredImage)}
-                                                            alt={`${job.title} delivery preview`}
+                                                            src={toImageUrl(order.deliveredImage)}
+                                                            alt={`${order.title} delivery preview`}
                                                             className="w-full max-h-[240px] rounded-xl object-cover border border-white"
                                                         />
                                                     ) : null}
 
                                                     <div>
-                                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">
-                                                            Delivery Note
-                                                        </p>
+                                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a88ad] mb-2">Delivery Note</p>
                                                         <p className="text-sm text-[#2c2c44] whitespace-pre-wrap">
-                                                            {job.deliveryNote || 'No delivery note was added for this order.'}
+                                                            {order.deliveryNote || 'No delivery note was added for this order.'}
                                                         </p>
                                                     </div>
 
-                                                    <p className="text-xs text-[#6a6981]">
-                                                        Delivered on {formatDate(job.deliveredAt)}
-                                                    </p>
+                                                    <p className="text-xs text-[#6a6981]">Delivered on {formatDate(order.deliveredAt)}</p>
 
-                                                    {job.status === 'Delivered' ? (
+                                                    {order.status === 'Delivered' ? (
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleConfirmDelivery(job.id)}
-                                                            disabled={confirmingOrderId === job.id}
+                                                            onClick={() => handleConfirmDelivery(order.id)}
+                                                            disabled={confirmingOrderId === order.id}
                                                             className="btn-primary seller-edit-btn"
                                                         >
                                                             <CheckCircle2 size={16} />
-                                                            {confirmingOrderId === job.id ? 'Confirming...' : 'Confirm Delivery'}
+                                                            {confirmingOrderId === order.id ? 'Confirming...' : 'Confirm Delivery'}
                                                         </button>
                                                     ) : (
-                                                        <p className="text-sm font-semibold text-[#17824c]">
-                                                            You already confirmed this delivery.
-                                                        </p>
+                                                        <p className="text-sm font-semibold text-[#17824c]">You already confirmed this delivery.</p>
                                                     )}
                                                 </div>
                                             )}
@@ -275,7 +484,7 @@ function UserProfilePage() {
                                     ))}
                                 </div>
                             ) : (
-                                <p>No job listings yet. Start by posting your first job.</p>
+                                <p>No service orders yet.</p>
                             )}
                         </div>
 
@@ -349,10 +558,7 @@ function UserProfilePage() {
                                         {profile.isStudentSeller ? 'Seller' : 'Buyer'}
                                     </span>
                                     {profile.isStudentSeller ? (
-                                        <span
-                                            className={`availability-badge ${(profile.availability || 'Active') === 'Active' ? 'active' : 'inactive'
-                                                }`}
-                                        >
+                                        <span className={`availability-badge ${(profile.availability || 'Active') === 'Active' ? 'active' : 'inactive'}`}>
                                             <UserCheck size={14} />
                                             {(profile.availability || 'Active') === 'Active' ? 'Active' : 'Inactive'}
                                         </span>

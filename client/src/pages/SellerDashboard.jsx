@@ -81,6 +81,8 @@ const SellerDashboard = () => {
     const [deletingIds, setDeletingIds] = useState([]);
     const [incomingOrders, setIncomingOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(true);
+    const [applications, setApplications] = useState([]);
+    const [applicationsLoading, setApplicationsLoading] = useState(true);
     const [updatingOrderId, setUpdatingOrderId] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [deliveryNote, setDeliveryNote] = useState('');
@@ -159,6 +161,25 @@ const SellerDashboard = () => {
             fetchIncomingOrders();
         }
     }, [user, fetchIncomingOrders]);
+
+    const fetchApplications = useCallback(async () => {
+        try {
+            setApplicationsLoading(true);
+            const res = await axios.get('/api/applications/seller');
+            setApplications(res.data);
+        } catch (err) {
+            console.error('Failed to load applications:', err);
+            setError(err.response?.data?.message || 'Failed to load your applications.');
+        } finally {
+            setApplicationsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (user?.isStudentSeller) {
+            fetchApplications();
+        }
+    }, [user, fetchApplications]);
 
     // Hide the navbar while the create gig modal is open to maximize viewport space.
     useEffect(() => {
@@ -305,6 +326,8 @@ const SellerDashboard = () => {
         Delivered: 'bg-violet-50 text-violet-700 border-violet-200',
         Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+        Accepted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        Rejected: 'bg-rose-50 text-rose-700 border-rose-200',
     };
     const recentActivity = useMemo(() => {
         const orderActivities = incomingOrders.flatMap((order) => {
@@ -640,6 +663,90 @@ const SellerDashboard = () => {
                                         <Eye className="w-4 h-4" />
                                         View Order Details
                                     </button>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                <section className="animate-fade-in-up mb-10">
+                    <div className="seller-dash-light__grid-header">
+                        <h2 className="seller-dash-light__section-title">
+                            My <span className="gradient-text">Applications</span>
+                        </h2>
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium opacity-60">
+                                {applications.length} {applications.length === 1 ? 'application' : 'applications'}
+                            </span>
+                            <button
+                                onClick={fetchApplications}
+                                disabled={applicationsLoading}
+                                className="p-2 rounded-full hover:bg-black/5 transition-colors"
+                                title="Reload applications"
+                            >
+                                <Sparkles className={applicationsLoading ? 'animate-spin' : ''} size={18} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {applicationsLoading ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            {[1, 2].map((item) => (
+                                <div key={item} className="seller-dash-light__skeleton seller-dash-light__skeleton-shimmer" style={{ height: '190px' }} />
+                            ))}
+                        </div>
+                    ) : applications.length === 0 ? (
+                        <div className="glass-card p-10 rounded-[28px] text-center">
+                            <div className="w-16 h-16 mx-auto rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                                <ClipboardList />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">No applications yet</h3>
+                            <p className="text-sm text-gray-500">
+                                Apply to open buyer jobs and your proposals will appear here.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            {applications.map((application) => (
+                                <article
+                                    key={application._id}
+                                    className="rounded-[28px] border border-white/60 bg-white/85 backdrop-blur p-6 shadow-[0_14px_35px_rgba(80,70,170,0.08)]"
+                                >
+                                    <div className="flex items-start justify-between gap-4 mb-5">
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400 mb-2">
+                                                Job Application
+                                            </p>
+                                            <h3 className="text-lg font-black text-gray-900">
+                                                {application.job?.title || 'Open job'}
+                                            </h3>
+                                        </div>
+                                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wide ${statusClasses[application.status] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                                            {application.status}
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                                        <div className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
+                                            <p className="text-xs font-bold text-slate-400 mb-1">Proposed Price</p>
+                                            <p className="font-black text-slate-900">LKR {Number(application.proposedPrice || 0).toLocaleString()}</p>
+                                        </div>
+                                        <div className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
+                                            <p className="text-xs font-bold text-slate-400 mb-1">Delivery</p>
+                                            <p className="font-black text-slate-900">{application.deliveryTime} Days</p>
+                                        </div>
+                                        <div className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
+                                            <p className="text-xs font-bold text-slate-400 mb-1">Applied</p>
+                                            <p className="font-black text-slate-900">{formatDate(application.createdAt)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl bg-indigo-50/60 p-4 border border-indigo-100">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-indigo-400 mb-2">Proposal Message</p>
+                                        <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">
+                                            {application.message}
+                                        </p>
+                                    </div>
                                 </article>
                             ))}
                         </div>

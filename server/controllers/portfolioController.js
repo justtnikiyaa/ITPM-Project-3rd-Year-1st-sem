@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Order = require('../models/Order');
+const Job = require('../models/Job');
+const Application = require('../models/Application');
 const Review = require('../models/Review');
 
 const parseSkills = (skills) => {
@@ -70,12 +72,26 @@ const getBuyerDashboard = async (req, res) => {
             return res.status(400).json({ message: 'This dashboard is only for buyers' });
         }
 
-        const orders = await Order.find({ buyer: req.user._id })
+        const [orders, jobs] = await Promise.all([
+            Order.find({ buyer: req.user._id })
             .populate('service', 'title category price')
             .populate('seller', 'name profileImage email')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 }),
+            Job.find({ buyer: req.user._id }).sort({ createdAt: -1 }),
+        ]);
 
-        const postedJobs = orders.map((order) => ({
+        const jobIds = jobs.map((job) => job._id);
+        const applications = jobIds.length
+            ? await Application.find({ job: { $in: jobIds } })
+                .populate('seller', 'name email profileImage universityDomain')
+                .populate({
+                    path: 'job',
+                    select: 'title buyer',
+                })
+                .sort({ createdAt: -1 })
+            : [];
+
+        const placedOrders = orders.map((order) => ({
             id: order._id,
             title: order.titleSnapshot || order.service?.title || 'Job request',
             category: order.service?.category || 'General',
@@ -89,6 +105,51 @@ const getBuyerDashboard = async (req, res) => {
             deliveryNote: order.deliveryNote || '',
             deliveredImage: order.deliveredImage || '',
             deliveredAt: order.deliveredAt || null,
+        }));
+
+        const applicationsByJob = applications.reduce((accumulator, application) => {
+            if (!application.job?._id) {
+                return accumulator;
+            }
+
+            const jobId = String(application.job._id);
+            if (!accumulator[jobId]) {
+                accumulator[jobId] = [];
+            }
+
+            accumulator[jobId].push({
+                id: application._id,
+                seller: application.seller
+                    ? {
+                          id: application.seller._id,
+                          name: application.seller.name,
+                          email: application.seller.email,
+                          profileImage: application.seller.profileImage || '',
+                          universityDomain: application.seller.universityDomain || '',
+                      }
+                    : null,
+                message: application.message,
+                proposedPrice: Number(application.proposedPrice || 0),
+                deliveryTime: Number(application.deliveryTime || 1),
+                status: application.status,
+                createdAt: application.createdAt,
+            });
+
+            return accumulator;
+        }, {});
+
+        const postedJobs = jobs.map((job) => ({
+            id: job._id,
+            title: job.title,
+            description: job.description,
+            category: job.category,
+            skills: job.skills || [],
+            budget: Number(job.budget || 0),
+            deliveryTime: Number(job.deliveryTime || 1),
+            requirements: job.requirements || '',
+            status: job.status,
+            createdAt: job.createdAt,
+            applications: applicationsByJob[String(job._id)] || [],
         }));
 
         const hiredFreelancersMap = new Map();
@@ -113,8 +174,8 @@ const getBuyerDashboard = async (req, res) => {
         }
 
         const statusCounts = {
-            active: postedJobs.filter((job) => ['In Progress', 'Delivered'].includes(job.status)).length,
-            pending: postedJobs.filter((job) => ['Pending'].includes(job.status)).length,
+            active: postedJobs.filter((job) => ['Open', 'In Progress'].includes(job.status)).length,
+            pending: postedJobs.filter((job) => ['Open'].includes(job.status)).length,
             completed: postedJobs.filter((job) => ['Completed'].includes(job.status)).length,
         };
 
@@ -122,16 +183,26 @@ const getBuyerDashboard = async (req, res) => {
         if (statusCounts.pending > 0) {
             notifications.push({
                 type: 'applications',
-                message: `${statusCounts.pending} job request(s) are pending freelancer action.`,
+                message: `${statusCounts.pending} posted job(s) are open for freelancers.`,
             });
         }
-        if (statusCounts.active > 0) {
+        const acceptedApplications = postedJobs.reduce(
+            (count, job) => count + job.applications.filter((application) => application.status === 'Accepted').length,
+            0
+        );
+        if (acceptedApplications > 0) {
+            notifications.push({
+                type: 'accepted-application',
+                message: `${acceptedApplications} seller application(s) have been accepted for your posted jobs.`,
+            });
+        }
+        if (placedOrders.some((job) => ['In Progress', 'Delivered'].includes(job.status))) {
             notifications.push({
                 type: 'messages',
-                message: `${statusCounts.active} collaboration(s) are currently in progress.`,
+                message: 'You have active service orders in progress.',
             });
         }
-        if (postedJobs.some((job) => job.status === 'Delivered')) {
+        if (placedOrders.some((job) => job.status === 'Delivered')) {
             notifications.push({
                 type: 'delivery',
                 message: 'A freelancer has delivered work and is waiting for your confirmation.',
@@ -150,6 +221,7 @@ const getBuyerDashboard = async (req, res) => {
         res.json({
             buyer: user,
             postedJobs,
+            placedOrders,
             postedJobStats: statusCounts,
             hiredFreelancers: Array.from(hiredFreelancersMap.values()),
             reviewsAboutBuyer: buyerReviews,
