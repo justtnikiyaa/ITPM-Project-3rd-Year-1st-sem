@@ -177,4 +177,30 @@ const deleteReview = async (req, res) => {
     }
 };
 
-module.exports = { getReviewsForSeller, createReview, updateReview, deleteReview };
+const getMyReviews = async (req, res) => {
+    try {
+        if (req.user?.isStudentSeller) {
+            return res.status(403).json({ message: 'Only buyer accounts have reviews' });
+        }
+
+        const reviews = await Review.find({ buyer: req.user._id })
+            .populate('seller', 'name profileImage')
+            .sort({ createdAt: -1 });
+
+        const shaped = reviews.map((review) => ({
+            _id: review._id,
+            order: review.order,
+            rating: review.rating,
+            comment: review.comment,
+            sellerId: review.seller?._id || review.seller,
+            sellerName: review.seller?.name || 'Unknown Seller',
+            createdAt: review.createdAt,
+        }));
+
+        res.json(shaped);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+module.exports = { getReviewsForSeller, createReview, updateReview, deleteReview, getMyReviews };
