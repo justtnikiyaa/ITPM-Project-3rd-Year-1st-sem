@@ -11,6 +11,7 @@ const {
     getRatingSummary,
     getBuyerDashboard,
     getSellerEarnings,
+    deleteOwnProfile,
 } = require('../controllers/portfolioController');
 
 const router = express.Router();
@@ -42,6 +43,7 @@ router.get('/me/buyer-dashboard', protect, getBuyerDashboard);
 router.get('/me/earnings', protect, getSellerEarnings);
 router.put('/me', protect, upload.single('profilePhoto'), updateOwnProfile);
 router.put('/me/password', protect, updateOwnPassword);
+router.delete('/me', protect, deleteOwnProfile);
 router.get('/seller/:sellerId', getSellerPortfolio);
 router.get('/seller/:sellerId/completed-projects', getCompletedProjectsForSeller);
 router.get('/seller/:sellerId/rating-summary', getRatingSummary);

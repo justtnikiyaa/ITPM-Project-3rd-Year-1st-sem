@@ -2988,6 +2988,45 @@
   margin-top: 8px;
 }
 
+.profile-delete-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1200;
+}
+
+.profile-delete-modal {
+  width: min(480px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+
+.profile-delete-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  color: #111827;
+}
+
+.profile-delete-modal p {
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.profile-delete-modal-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 /* Seller portfolio beautified UI */
 .portfolio-hero-card,
 .portfolio-rating-card,
