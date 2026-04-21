@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import StarRating from '../components/portfolio/StarRating';
 import apiClient from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
+import AddReviewForm from '../components/portfolio/AddReviewForm';
+import ConfirmationModal from '../components/portfolio/ConfirmationModal';
 import {
     Bell,
     Briefcase,
@@ -17,6 +20,12 @@ import {
     Users2,
     Wallet,
     Wrench,
+    CheckCircle,
+    MessageSquare,
+    Star,
+    LayoutDashboard,
+    Trash2,
+    Edit3,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -38,11 +47,19 @@ const buyerStatusClasses = {
 };
 
 function UserProfilePage() {
-    const { updateUser } = useAuth();
+    const { updateUser, logout } = useAuth();
     const [profile, setProfile] = useState(null);
     const [buyerDashboard, setBuyerDashboard] = useState(null);
     const [error, setError] = useState('');
     const [confirmingOrderId, setConfirmingOrderId] = useState('');
+    const [reviewingOrderId, setReviewingOrderId] = useState('');
+    const [showGeneralReviewForm, setShowGeneralReviewForm] = useState(false);
+    const [editingReviewId, setEditingReviewId] = useState('');
+    const [editForm, setEditForm] = useState({ rating: 5, comment: '' });
+    const [busyReviewId, setBusyReviewId] = useState('');
+    const [myReviews, setMyReviews] = useState([]);
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, reviewId: null });
+    const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
 
     const getFallbackBuyerDashboard = useCallback(() => ({
         postedJobs: [],
@@ -74,6 +91,15 @@ function UserProfilePage() {
         }
     }, [loadBuyerDashboard]);
 
+    const loadMyReviews = useCallback(async () => {
+        try {
+            const reviewsRes = await apiClient.get('/api/reviews/me');
+            setMyReviews(reviewsRes.data);
+        } catch (e) {
+            console.error('Failed to load my reviews', e);
+        }
+    }, []);
+
     useEffect(() => {
         const load = async () => {
             try {
@@ -82,13 +108,54 @@ function UserProfilePage() {
                 updateUser({ ...data, token: localStorage.getItem('unigig_token') });
                 if (!data.isStudentSeller) {
                     await loadBuyerDashboard();
+                    await loadMyReviews();
                 }
             } catch (err) {
                 setError(err.response?.data?.message || 'Failed to load profile. Please refresh and try again.');
             }
         };
         load();
-    }, [loadBuyerDashboard, updateUser]);
+    }, [loadBuyerDashboard, updateUser, loadMyReviews]);
+
+    const handleUpdateMyReview = async (reviewId) => {
+        try {
+            setBusyReviewId(reviewId);
+            await apiClient.patch(`/api/reviews/${reviewId}`, editForm);
+            setEditingReviewId('');
+            await loadMyReviews();
+            await loadBuyerDashboard();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update review');
+        } finally {
+            setBusyReviewId('');
+        }
+    };
+
+    const handleDeleteMyReview = async () => {
+        const reviewId = confirmModal.reviewId;
+        if (!reviewId) return;
+        
+        try {
+            setBusyReviewId(reviewId);
+            setConfirmModal({ isOpen: false, reviewId: null });
+            await apiClient.delete(`/api/reviews/${reviewId}`);
+            await loadMyReviews();
+            await loadBuyerDashboard();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to delete review');
+        } finally {
+            setBusyReviewId('');
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        try {
+            await apiClient.delete('/api/users/me');
+            logout();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to delete account');
+        }
+    };
 
     if (error) return <div className="profile-page-light"><div className="page-wrap"><p className="text-error">{error}</p></div></div>;
     if (!profile) return <div className="profile-page-light"><div className="page-wrap"><p>Loading profile...</p></div></div>;
@@ -147,10 +214,35 @@ function UserProfilePage() {
                                 'I hire reliable freelancers for quality student-focused projects in design, tech, and content.'}
                         </p>
 
-                        <div className="buyer-quick-stats">
-                            <div><strong>{postedJobStats.active}</strong><span>Active Jobs</span></div>
-                            <div><strong>{postedJobStats.pending}</strong><span>Pending Jobs</span></div>
-                            <div><strong>{postedJobStats.completed}</strong><span>Completed Jobs</span></div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                            <div className="glass-card p-6 border-none shadow-md flex flex-col items-center text-center group hover:bg-[#4a3fb9] transition-all duration-300">
+                                <div className="p-3 bg-[#f0f0ff] text-[#4a3fb9] rounded-2xl mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                                    <FolderKanban size={24} />
+                                </div>
+                                <strong className="text-2xl font-black group-hover:text-white">{postedJobStats.active}</strong>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white/70">Active Jobs</span>
+                            </div>
+                            <div className="glass-card p-6 border-none shadow-md flex flex-col items-center text-center group hover:bg-[#4a3fb9] transition-all duration-300">
+                                <div className="p-3 bg-[#fff9e6] text-[#ffb800] rounded-2xl mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                                    <Clock3 size={24} />
+                                </div>
+                                <strong className="text-2xl font-black group-hover:text-white">{postedJobStats.pending}</strong>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white/70">Pending Jobs</span>
+                            </div>
+                            <div className="glass-card p-6 border-none shadow-md flex flex-col items-center text-center group hover:bg-[#4a3fb9] transition-all duration-300">
+                                <div className="p-3 bg-[#e5fcf4] text-[#00b88a] rounded-2xl mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                                    <CheckCircle size={24} />
+                                </div>
+                                <strong className="text-2xl font-black group-hover:text-white">{postedJobStats.completed}</strong>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white/70">Completed Jobs</span>
+                            </div>
+                            <div className="glass-card p-6 border-none shadow-md flex flex-col items-center text-center group hover:bg-[#4a3fb9] transition-all duration-300">
+                                <div className="p-3 bg-[#fff0f0] text-[#ff6b6b] rounded-2xl mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                                    <MessageSquare size={24} />
+                                </div>
+                                <strong className="text-2xl font-black group-hover:text-white">{myReviews.length}</strong>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white/70">Reviews Given</span>
+                            </div>
                         </div>
 
                         <div className="seller-sections-grid">
@@ -269,6 +361,35 @@ function UserProfilePage() {
                                                             You already confirmed this delivery.
                                                         </p>
                                                     )}
+
+                                                    {job.status === 'Completed' && !myReviews.some(r => String(r.order) === String(job.id)) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setReviewingOrderId(job.id)}
+                                                            className="btn-secondary w-full py-3 flex items-center justify-center gap-2"
+                                                        >
+                                                            <Star size={14} /> Submit Review
+                                                        </button>
+                                                    )}
+
+                                                    {reviewingOrderId === job.id && (
+                                                        <div className="animate-fade-in mt-6 pt-6 border-t border-[#dedbff]">
+                                                            <AddReviewForm 
+                                                                preselectedOrderId={job.id} 
+                                                                onSuccess={() => {
+                                                                    setReviewingOrderId('');
+                                                                    loadBuyerDashboard();
+                                                                    apiClient.get('/api/reviews/me').then(res => setMyReviews(res.data));
+                                                                }} 
+                                                            />
+                                                            <button 
+                                                                onClick={() => setReviewingOrderId('')}
+                                                                className="mt-4 text-xs font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest block mx-auto"
+                                                            >
+                                                                Cancel Review
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </article>
@@ -311,6 +432,119 @@ function UserProfilePage() {
                             )}
                         </div>
 
+                        <div className="profile-section buyer-wide-card border-none bg-transparent p-0">
+                            <div className="flex items-center justify-between mb-6">
+                                <h4 className="text-xl font-black text-[#1a1a2e] flex items-center gap-2"><MessageSquare size={20} className="text-[#4a3fb9]" />My Submitted Reviews</h4>
+                                <div className="h-0.5 flex-1 mx-6 bg-gray-100 rounded-full"></div>
+                                <button 
+                                    onClick={() => setShowGeneralReviewForm(!showGeneralReviewForm)}
+                                    className="px-4 py-2 bg-[#4a3fb9] text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:shadow-lg transition-all"
+                                >
+                                    {showGeneralReviewForm ? 'Cancel Review' : 'Submit Review by ID'}
+                                </button>
+                            </div>
+
+                            {showGeneralReviewForm && (
+                                <div className="mb-10 max-w-2xl mx-auto">
+                                    <AddReviewForm 
+                                        onSuccess={() => {
+                                            setShowGeneralReviewForm(false);
+                                            loadBuyerDashboard();
+                                            apiClient.get('/api/reviews/me').then(res => setMyReviews(res.data));
+                                        }}
+                                    />
+                                </div>
+                            )}
+                            {myReviews.length ? (
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {myReviews.map((review) => (
+                                        <div key={review._id} className="glass-card p-6 border-none shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div>
+                                                    <span className="text-[10px] font-black text-[#4a3fb9] uppercase tracking-widest">Feedback for</span>
+                                                    <h5 className="text-sm font-black text-[#1a1a2e]">{review.sellerName}</h5>
+                                                </div>
+                                                <StarRating rating={review.rating} readOnly size={12} />
+                                            </div>
+                                            {editingReviewId === review._id ? (
+                                                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Edit Rating</label>
+                                                        <StarRating rating={editForm.rating} setRating={(val) => setEditForm({ ...editForm, rating: val })} size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Edit Comment</label>
+                                                        <textarea 
+                                                            className="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#4a3fb9]"
+                                                            value={editForm.comment}
+                                                            onChange={(e) => setEditForm({ ...editForm, comment: e.target.value })}
+                                                            rows={3}
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            onClick={() => handleUpdateMyReview(review._id)}
+                                                            disabled={busyReviewId === review._id}
+                                                            className="flex-1 py-2 bg-[#4a3fb9] text-white text-[10px] font-black uppercase rounded-lg disabled:opacity-50"
+                                                        >
+                                                            {busyReviewId === review._id ? 'Saving...' : 'Save Changes'}
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setEditingReviewId('')}
+                                                            className="flex-1 py-2 bg-gray-200 text-gray-600 text-[10px] font-black uppercase rounded-lg"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <p className="text-xs text-gray-600 font-medium leading-relaxed bg-gray-50 p-4 rounded-xl italic border border-gray-100">"{review.comment}"</p>
+                                                    <div className="mt-4 flex items-center justify-between">
+                                                        <div className="flex gap-4">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditingReviewId(review._id);
+                                                                    setEditForm({ rating: review.rating, comment: review.comment });
+                                                                }}
+                                                                className="flex items-center gap-1 text-[10px] font-black uppercase text-[#4a3fb9] hover:opacity-70"
+                                                            >
+                                                                <Edit3 size={12} /> Edit
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setConfirmModal({ isOpen: true, reviewId: review._id })}
+                                                                disabled={busyReviewId === review._id}
+                                                                className="flex items-center gap-1 text-[10px] font-black uppercase text-red-500 hover:opacity-70 disabled:opacity-50"
+                                                            >
+                                                                <Trash2 size={12} /> Delete
+                                                            </button>
+                                                        </div>
+                                                        <Link to={`/portfolio/${review.sellerId}`} className="text-[10px] font-black uppercase text-gray-400 hover:text-[#4a3fb9]">View Seller</Link>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="glass-card p-12 text-center border-dashed border-2 border-gray-200">
+                                    <MessageSquare size={48} className="mx-auto text-gray-200 mb-4" />
+                                    <p className="text-gray-400 font-bold">You haven't submitted any reviews yet.</p>
+                                    <Link to="/" className="mt-4 inline-block text-sm font-black text-[#4a3fb9] hover:underline">Browse services to get started</Link>
+                                </div>
+                            )}
+                        </div>
+
+                        <ConfirmationModal 
+                            isOpen={confirmModal.isOpen}
+                            title="Delete Review?"
+                            message="This action cannot be undone. Your feedback will be permanently removed from the student seller's portfolio."
+                            confirmText="Delete Permanently"
+                            cancelText="Keep Review"
+                            onConfirm={handleDeleteMyReview}
+                            onCancel={() => setConfirmModal({ isOpen: false, reviewId: null })}
+                        />
+
                         <div className="profile-section buyer-wide-card">
                             <h4><Briefcase size={16} />Find Freelancers / Hire Now</h4>
                             <div className="portfolio-skills-wrap">
@@ -321,8 +555,33 @@ function UserProfilePage() {
                                 ))}
                             </div>
                         </div>
+
+                        <div className="mt-12 pt-8 border-t border-red-100">
+                            <div className="bg-red-50 p-8 rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div>
+                                    <h4 className="text-lg font-black text-red-500 mb-2">Danger Zone</h4>
+                                    <p className="text-sm text-red-500/70 font-bold leading-relaxed">Once you delete your account, there is no going back. All your data will be permanently removed.</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowDeleteAccountModal(true)}
+                                    className="px-8 py-3 bg-red-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:shadow-lg hover:bg-red-600 transition-all"
+                                >
+                                    Delete My Account
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <ConfirmationModal 
+                    isOpen={showDeleteAccountModal}
+                    title="Delete Account Permanently?"
+                    message="This will delete your profile, services, and reviews. This action is irreversible. Are you absolutely sure?"
+                    confirmText="Yes, Delete Everything"
+                    cancelText="No, Keep My Account"
+                    onConfirm={handleDeleteAccount}
+                    onCancel={() => setShowDeleteAccountModal(false)}
+                />
             </section>
         );
     }
@@ -360,10 +619,16 @@ function UserProfilePage() {
                                 </div>
                             </div>
                         </div>
-                        <Link to="/profile/edit" className="btn-primary profile-edit-btn seller-edit-btn">
-                            <PenSquare size={16} />
-                            Edit Profile
-                        </Link>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <Link to={`/portfolio/${profile._id}`} className="btn-secondary profile-edit-btn seller-edit-btn">
+                                <Compass size={16} />
+                                View Portfolio
+                            </Link>
+                            <Link to="/profile/edit" className="btn-primary profile-edit-btn seller-edit-btn">
+                                <PenSquare size={16} />
+                                Edit Profile
+                            </Link>
+                        </div>
                     </div>
 
                     <p className="profile-bio">{profile.bio || 'Add a bio to make your profile more attractive to other users.'}</p>
@@ -422,8 +687,32 @@ function UserProfilePage() {
                             </>
                         ) : null}
                     </div>
+                    <div className="mt-12 pt-8 border-t border-red-100">
+                        <div className="bg-red-50 p-8 rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div>
+                                <h4 className="text-lg font-black text-red-500 mb-2">Danger Zone</h4>
+                                <p className="text-sm text-red-500/70 font-bold leading-relaxed">Once you delete your account, there is no going back. All your data will be permanently removed.</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowDeleteAccountModal(true)}
+                                className="px-8 py-3 bg-red-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:shadow-lg hover:bg-red-600 transition-all"
+                            >
+                                Delete My Account
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <ConfirmationModal 
+                isOpen={showDeleteAccountModal}
+                title="Delete Account Permanently?"
+                message="This will delete your profile, services, and reviews. This action is irreversible. Are you absolutely sure?"
+                confirmText="Yes, Delete Everything"
+                cancelText="No, Keep My Account"
+                onConfirm={handleDeleteAccount}
+                onCancel={() => setShowDeleteAccountModal(false)}
+            />
         </section>
     );
 }
