@@ -18,6 +18,7 @@ function SellerPortfolioPage() {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const currentUserId = user?._id || user?.id || '';
 
     const loadPortfolioData = async () => {
         setLoading(true);
@@ -43,6 +44,16 @@ function SellerPortfolioPage() {
     useEffect(() => {
         loadPortfolioData();
     }, [sellerId]);
+
+    const handleUpdateReview = async (reviewId, payload) => {
+        await apiClient.patch(`/api/reviews/${reviewId}`, payload);
+        await loadPortfolioData();
+    };
+
+    const handleDeleteReview = async (reviewId) => {
+        await apiClient.delete(`/api/reviews/${reviewId}`);
+        await loadPortfolioData();
+    };
 
     return (
         <section className="profile-page-light">
@@ -84,6 +95,32 @@ function SellerPortfolioPage() {
                                 <p className="portfolio-email">{portfolio.seller.email}</p>
                                 <p className="portfolio-bio">{portfolio.seller.bio || 'No bio provided yet.'}</p>
                                 <p><strong>Portfolio:</strong> {portfolio.seller.portfolioSummary || 'No summary available.'}</p>
+                                <p><strong>Work Experience:</strong> {portfolio.seller.workExperience || 'Not added yet.'}</p>
+                                <p><strong>Education & Certifications:</strong> {portfolio.seller.educationCertifications || 'Not added yet.'}</p>
+                                <div>
+                                    <strong>Social Links:</strong>
+                                    {portfolio.seller.linkedinUrl || portfolio.seller.githubUrl || portfolio.seller.portfolioWebsite ? (
+                                        <div className="portfolio-skills-wrap" style={{ marginTop: '8px' }}>
+                                            {portfolio.seller.linkedinUrl ? (
+                                                <a href={portfolio.seller.linkedinUrl} target="_blank" rel="noreferrer" className="portfolio-skill-pill">
+                                                    LinkedIn
+                                                </a>
+                                            ) : null}
+                                            {portfolio.seller.githubUrl ? (
+                                                <a href={portfolio.seller.githubUrl} target="_blank" rel="noreferrer" className="portfolio-skill-pill">
+                                                    GitHub
+                                                </a>
+                                            ) : null}
+                                            {portfolio.seller.portfolioWebsite ? (
+                                                <a href={portfolio.seller.portfolioWebsite} target="_blank" rel="noreferrer" className="portfolio-skill-pill">
+                                                    Portfolio Website
+                                                </a>
+                                            ) : null}
+                                        </div>
+                                    ) : (
+                                        <p>Not added yet.</p>
+                                    )}
+                                </div>
                                 <div className="portfolio-skills-wrap">
                                     {(portfolio.seller.skills?.length ? portfolio.seller.skills : ['No skills listed']).map((skill) => (
                                         <span key={skill} className="portfolio-skill-pill">{skill}</span>
@@ -95,7 +132,13 @@ function SellerPortfolioPage() {
                     <h3 className="portfolio-section-title">Completed Projects</h3>
                     <CompletedProjects projects={projects} loading={loading} resolveImage={toImageUrl} />
                     <h3 className="portfolio-section-title">Reviews</h3>
-                    <ReviewsList reviews={reviews} loading={loading} />
+                    <ReviewsList
+                        reviews={reviews}
+                        loading={loading}
+                        currentUserId={currentUserId}
+                        onUpdateReview={handleUpdateReview}
+                        onDeleteReview={handleDeleteReview}
+                    />
                     {user ? (
                         user.isStudentSeller ? (
                             <div className="portfolio-card">

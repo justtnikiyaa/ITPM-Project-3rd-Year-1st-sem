@@ -1,10 +1,12 @@
 const express = require('express');
-const { protect } = require('../middleware/auth');
-const { getReviewsForSeller, createReview } = require('../controllers/reviewController');
+const { protect, requireBuyer } = require('../middleware/auth');
+const { getReviewsForSeller, createReview, updateReview, deleteReview } = require('../controllers/reviewController');
 
 const router = express.Router();
 
 router.get('/seller/:sellerId', getReviewsForSeller);
-router.post('/', protect, createReview);
+router.post('/', protect, requireBuyer, createReview);
+router.patch('/:reviewId', protect, requireBuyer, updateReview);
+router.delete('/:reviewId', protect, requireBuyer, deleteReview);
 
 module.exports = router;

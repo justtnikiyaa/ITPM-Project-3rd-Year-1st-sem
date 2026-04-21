@@ -392,6 +392,33 @@ function UserProfilePage() {
                                     </h4>
                                     <p>{(profile.availability || 'Active') === 'Active' ? 'Available for new projects' : 'Currently inactive'}</p>
                                 </div>
+                                <div className="profile-section">
+                                    <h4>
+                                        <Briefcase size={16} />
+                                        Work Experience / History
+                                    </h4>
+                                    <p>{profile.workExperience || 'Add your previous jobs, clients, and durations.'}</p>
+                                </div>
+                                <div className="profile-section">
+                                    <h4>
+                                        <Compass size={16} />
+                                        Education & Certifications
+                                    </h4>
+                                    <p>{profile.educationCertifications || 'Add your degree details and certifications.'}</p>
+                                </div>
+                                <div className="profile-section">
+                                    <h4>
+                                        <Users2 size={16} />
+                                        Social Links
+                                    </h4>
+                                    <p>
+                                        LinkedIn: {profile.linkedinUrl || 'Not added'}
+                                        <br />
+                                        GitHub: {profile.githubUrl || 'Not added'}
+                                        <br />
+                                        Portfolio: {profile.portfolioWebsite || 'Not added'}
+                                    </p>
+                                </div>
                             </>
                         ) : null}
                     </div>
