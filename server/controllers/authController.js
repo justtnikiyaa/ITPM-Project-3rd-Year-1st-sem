@@ -20,23 +20,26 @@ const generateToken = (user) => {
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
+// ✅ ACCOUNT CREATION - VALIDATION STARTS HERE
 const register = async (req, res) => {
     try {
         const { name, email, password } = req.body;
 
+        // ✅ VALIDATION 1: Check if all required fields are present (name, email, password)
         if (!name || !email || !password) {
             return res
                 .status(400)
                 .json({ message: 'Please provide name, email, and password' });
         }
 
-        // Check if user already exists
+        // ✅ VALIDATION 2: Check if user email already exists in database
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Determine student seller status from email
+        // ✅ VALIDATION 3: Determine if email is from university domain
+        // Uses regex to check for Sri Lankan university emails (sellers identification)
         const isStudentSeller = sriLankaUniRegex.test(email);
 
         // Extract university domain if student
@@ -88,12 +91,14 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // ✅ VALIDATION 1: Check if email and password are provided
         if (!email || !password) {
             return res
                 .status(400)
                 .json({ message: 'Please provide email and password' });
         }
 
+        // ✅ VALIDATION 2: Check if user exists in database
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
             return res.status(401).json({ message: 'Invalid email or password' });
