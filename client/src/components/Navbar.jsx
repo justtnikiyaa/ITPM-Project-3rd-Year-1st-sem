@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
+import { MessageCircle } from 'lucide-react';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
+    const { unreadCount, clearUnread } = useNotification();
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -74,6 +77,22 @@ const Navbar = () => {
                                 </span>
                             )}
 
+                            {/* Chat Icon */}
+                            <Link 
+                                to="/chat" 
+                                onClick={clearUnread}
+                                className="relative flex items-center justify-center p-2 text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer mr-2"
+                                title="Messages"
+                            >
+                                <MessageCircle size={22} className="stroke-[2.5px]" />
+                                {unreadCount > 0 && (
+                                    <span className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </Link>
+
+                            {/* User info */}
                             <div className="navbar-user">
                                 <div className="navbar-avatar">
                                     {user.name?.charAt(0).toUpperCase()}
@@ -148,6 +167,15 @@ const Navbar = () => {
                                     Verify Email to Continue
                                 </span>
                             )}
+                            <Link to="/chat" className="navbar-mobile-link flex justify-between items-center" onClick={() => { clearUnread(); closeMobileMenu(); }}>
+                                <div className="flex items-center gap-2">
+                                    <MessageCircle size={18} /> Messages
+                                </div>
+                                {unreadCount > 0 && (
+                                    <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                                )}
+                            </Link>
+
                             <button onClick={() => { handleLogout(); closeMobileMenu(); }} className="navbar-mobile-link navbar-mobile-link--logout">
                                 Logout
                             </button>
