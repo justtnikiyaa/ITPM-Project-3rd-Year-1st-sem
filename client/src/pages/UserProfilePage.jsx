@@ -538,11 +538,39 @@ function UserProfilePage() {
                                                     </div>
 
                                                     {order.deliveredImage ? (
-                                                        <img
-                                                            src={toImageUrl(order.deliveredImage)}
-                                                            alt={`${order.title} delivery preview`}
-                                                            className="w-full max-h-[240px] rounded-xl object-cover border border-white"
-                                                        />
+                                                        /\.(jpe?g|png|gif|webp)$/i.test(order.deliveredImage) ? (
+                                                            <img
+                                                                src={toImageUrl(order.deliveredImage)}
+                                                                alt={`${order.title} delivery preview`}
+                                                                className="w-full max-h-[240px] rounded-xl object-cover border border-white"
+                                                            />
+                                                        ) : (
+                                                            <div className="bg-white border border-gray-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                                                        {/\.(zip|rar|7z|tar|gz)$/i.test(order.deliveredImage) ? (
+                                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                                                                        ) : (
+                                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-left">
+                                                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Deliverable File</p>
+                                                                        <p className="text-sm font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-xs">{order.deliveredImage.split('/').pop().substring(14) || 'Project Deliverable'}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <a
+                                                                    href={toImageUrl(order.deliveredImage)}
+                                                                    download
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="px-4 py-2.5 bg-[#4a3fb9] text-white text-[11px] font-black uppercase tracking-wider rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                                    Download File
+                                                                </a>
+                                                            </div>
+                                                        )
                                                     ) : null}
 
                                                     <div>
@@ -568,20 +596,20 @@ function UserProfilePage() {
                                                         <p className="text-sm font-semibold text-[#17824c]">You already confirmed this delivery.</p>
                                                     )}
 
-                                                    {job.status === 'Completed' && !myReviews.some(r => String(r.order) === String(job.id)) && (
+                                                    {order.status === 'Completed' && !myReviews.some(r => String(r.order) === String(order.id)) && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setReviewingOrderId(job.id)}
+                                                            onClick={() => setReviewingOrderId(order.id)}
                                                             className="btn-secondary w-full py-3 flex items-center justify-center gap-2"
                                                         >
                                                             <Star size={14} /> Submit Review
                                                         </button>
                                                     )}
 
-                                                    {reviewingOrderId === job.id && (
+                                                    {reviewingOrderId === order.id && (
                                                         <div className="animate-fade-in mt-6 pt-6 border-t border-[#dedbff]">
                                                             <AddReviewForm 
-                                                                preselectedOrderId={job.id} 
+                                                                preselectedOrderId={order.id} 
                                                                 onSuccess={() => {
                                                                     setReviewingOrderId('');
                                                                     loadBuyerDashboard();

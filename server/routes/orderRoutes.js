@@ -26,15 +26,17 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage,
     fileFilter: (req, file, cb) => {
-        const allowed = /jpeg|jpg|png|gif|webp/;
+        // Expand allowed files to support ZIPs, PDFs, and common documents for project deliveries
+        const allowed = /jpeg|jpg|png|gif|webp|pdf|zip|rar|tar|gz|7z|doc|docx|txt|xls|xlsx|ppt|pptx/;
         const extname = allowed.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = allowed.test(file.mimetype);
-        if (extname && mimetype) {
+        const mimetype = allowed.test(file.mimetype) || 
+            /application\/(pdf|zip|x-zip-compressed|x-zip|octet-stream|msword|vnd\.openxmlformats-officedocument)|text\/plain/.test(file.mimetype);
+        if (extname || mimetype) {
             return cb(null, true);
         }
-        cb(new Error('Only image files are allowed'));
+        cb(new Error('Only image, document, and archive files are allowed'));
     },
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit for deliveries
 });
 
 router.post('/', protect, requireBuyer, createOrder);

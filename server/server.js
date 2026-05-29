@@ -41,9 +41,31 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 
-// Health check
-app.get('/', (req, res) => {
-    res.json({ message: 'UniGig API is running' });
+// Serve frontend static files in production
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, '../client/dist')));
+    
+    app.get('*', (req, res) => {
+        res.sendFile(path.resolve(__dirname, '../client', 'dist', 'index.html'));
+    });
+} else {
+    // Health check
+    app.get('/', (req, res) => {
+        res.json({ message: 'UniGig API is running' });
+    });
+}
+
+// Global error handling middleware (handles Multer errors and others gracefully)
+const multer = require('multer');
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ message: 'File is too large. Maximum size allowed is 15MB.' });
+        }
+        return res.status(400).json({ message: `Upload error: ${err.message}` });
+    }
+    console.error('Unhandled server error:', err);
+    res.status(500).json({ message: err.message || 'Internal Server Error' });
 });
 
 // Connect to MongoDB and start server

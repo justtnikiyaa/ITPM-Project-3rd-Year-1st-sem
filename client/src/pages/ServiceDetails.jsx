@@ -302,7 +302,7 @@ const ServiceDetails = () => {
                             <div className="glass-card p-10 rounded-[2.5rem] animate-fade-in-up border-indigo-50 shadow-xl shadow-indigo-100/10" style={{ animationDelay: '0.4s' }}>
                                 <div className="flex items-center gap-6 mb-8">
                                     <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] flex items-center justify-center text-white text-3xl font-black shadow-2xl shadow-indigo-200 overflow-hidden text-center">
-                                        {service.seller?.name[0].toUpperCase()}
+                                        {service.seller?.name ? service.seller.name.charAt(0).toUpperCase() : '?'}
                                     </div>
                                     <div>
                                         <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest mb-1">Freelancer</p>
