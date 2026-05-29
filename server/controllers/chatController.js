@@ -13,13 +13,18 @@ exports.getOrCreateChat = async (req, res) => {
         let finalOrderId = orderId;
 
         if (!finalOrderId && serviceId) {
-            let order = await Order.findOne({ serviceId, buyer: buyerId, seller: sellerId });
+            let order = await Order.findOne({ service: serviceId, buyer: buyerId, seller: sellerId });
             if (!order) {
                 order = new Order({
-                    serviceId,
+                    service: serviceId,
                     buyer: buyerId,
                     seller: sellerId,
-                    price: 0
+                    price: 0,
+                    packageName: 'Pre-Order Inquiry',
+                    deliveryDays: 1,
+                    deliveryTime: 'N/A',
+                    requirementsMessage: 'Pre-order discussion',
+                    status: 'Pending'
                 });
                 await order.save();
             }
