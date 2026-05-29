@@ -32,6 +32,7 @@ const ServiceDetails = () => {
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [contacting, setContacting] = useState(false);
 
     useEffect(() => {
         const fetchService = async () => {
@@ -82,6 +83,28 @@ const ServiceDetails = () => {
             </div>
         );
     }
+
+    const handleContactSeller = async () => {
+        if (!user) {
+            navigate('/login');
+            return;
+        }
+        
+        try {
+            setContacting(true);
+            const res = await axios.post(`${API_BASE}/api/chats`, {
+                serviceId: service._id,
+                buyerId: user._id,
+                sellerId: service.seller._id
+            });
+            navigate('/chat', { state: { activeChatId: res.data._id } });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to start chat. Please try again.");
+        } finally {
+            setContacting(false);
+        }
+    };
 
     const packagePrices = (service.packages || [])
         .map((pkg) => Number(pkg?.price))
@@ -261,9 +284,13 @@ const ServiceDetails = () => {
                                     </p>
                                 )}
 
-                                <button className="w-full py-5 rounded-[1.5rem] border-2 border-indigo-50 text-indigo-600 font-black hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-3">
+                                <button 
+                                    onClick={handleContactSeller}
+                                    disabled={contacting}
+                                    className="w-full py-5 rounded-[1.5rem] border-2 border-indigo-50 text-indigo-600 font-black hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
                                     <MessageCircle className="w-6 h-6" />
-                                    Contact Seller
+                                    {contacting ? 'Starting...' : 'Contact Seller'}
                                 </button>
 
                                 <p className="text-center text-xs text-gray-400 mt-8 font-medium">

@@ -4,12 +4,17 @@ const Order = require('../models/Order');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const Review = require('../models/Review');
+const Service = require('../models/Service');
 
 const parseSkills = (skills) => {
     if (Array.isArray(skills)) return skills.map((item) => String(item).trim()).filter(Boolean);
     if (typeof skills === 'string') return skills.split(',').map((item) => item.trim()).filter(Boolean);
     return [];
 };
+
+const normalizeUrl = (value) => String(value || '').trim();
+
+const isValidHttpUrl = (value) => /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(value);
 
 const getUserProfile = async (req, res) => {
     try {
@@ -29,7 +34,19 @@ const isStrongPassword = (password) => {
 
 const updateOwnProfile = async (req, res) => {
     try {
-        const { name, bio, skills, portfolioSummary, availability, budgetPreference } = req.body;
+        const {
+            name,
+            bio,
+            skills,
+            portfolioSummary,
+            availability,
+            budgetPreference,
+            workExperience,
+            educationCertifications,
+            linkedinUrl,
+            githubUrl,
+            portfolioWebsite,
+        } = req.body;
         const user = await User.findById(req.user._id);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -48,6 +65,41 @@ const updateOwnProfile = async (req, res) => {
         // Portfolio summary and availability are seller-specific fields
         if (user.isStudentSeller && portfolioSummary !== undefined) {
             user.portfolioSummary = String(portfolioSummary).trim().slice(0, 300);
+        }
+        if (user.isStudentSeller && workExperience !== undefined) {
+            const parsedWork = String(workExperience).trim();
+            if (parsedWork && parsedWork.length < 10) {
+                return res.status(400).json({ message: 'Work experience/history must be at least 10 characters' });
+            }
+            user.workExperience = parsedWork.slice(0, 1000);
+        }
+        if (user.isStudentSeller && educationCertifications !== undefined) {
+            const parsedEducation = String(educationCertifications).trim();
+            if (parsedEducation && parsedEducation.length < 10) {
+                return res.status(400).json({ message: 'Education & certifications must be at least 10 characters' });
+            }
+            user.educationCertifications = parsedEducation.slice(0, 1000);
+        }
+        if (user.isStudentSeller && linkedinUrl !== undefined) {
+            const parsedLinkedIn = normalizeUrl(linkedinUrl).slice(0, 300);
+            if (parsedLinkedIn && (!isValidHttpUrl(parsedLinkedIn) || !parsedLinkedIn.toLowerCase().includes('linkedin.com'))) {
+                return res.status(400).json({ message: 'Please provide a valid LinkedIn URL' });
+            }
+            user.linkedinUrl = parsedLinkedIn;
+        }
+        if (user.isStudentSeller && githubUrl !== undefined) {
+            const parsedGithub = normalizeUrl(githubUrl).slice(0, 300);
+            if (parsedGithub && (!isValidHttpUrl(parsedGithub) || !parsedGithub.toLowerCase().includes('github.com'))) {
+                return res.status(400).json({ message: 'Please provide a valid GitHub URL' });
+            }
+            user.githubUrl = parsedGithub;
+        }
+        if (user.isStudentSeller && portfolioWebsite !== undefined) {
+            const parsedWebsite = normalizeUrl(portfolioWebsite).slice(0, 300);
+            if (parsedWebsite && !isValidHttpUrl(parsedWebsite)) {
+                return res.status(400).json({ message: 'Portfolio website must be a valid URL' });
+            }
+            user.portfolioWebsite = parsedWebsite;
         }
         if (user.isStudentSeller && availability !== undefined) {
             if (!['Active', 'Away'].includes(availability)) {
@@ -307,6 +359,34 @@ const updateOwnPassword = async (req, res) => {
     }
 };
 
+const deleteOwnProfile = async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ message: 'Password is required to delete account' });
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const passwordMatches = await user.comparePassword(password);
+        if (!passwordMatches) {
+            return res.status(401).json({ message: 'Password is incorrect' });
+        }
+
+        await Promise.all([
+            Service.deleteMany({ seller: user._id }),
+            Order.deleteMany({ $or: [{ buyer: user._id }, { seller: user._id }] }),
+            Review.deleteMany({ $or: [{ buyer: user._id }, { seller: user._id }] }),
+        ]);
+
+        await user.deleteOne();
+        res.json({ message: 'Profile deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 const getCompletedProjectsForSeller = async (req, res) => {
     try {
         const { sellerId } = req.params;
@@ -410,4 +490,5 @@ module.exports = {
     getRatingSummary,
     getBuyerDashboard,
     getSellerEarnings,
+    deleteOwnProfile,
 };

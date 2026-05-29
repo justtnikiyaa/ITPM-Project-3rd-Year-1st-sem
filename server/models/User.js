@@ -67,6 +67,34 @@ const userSchema = new mongoose.Schema(
       default: '',
       maxlength: 300,
     },
+    workExperience: {
+      type: String,
+      default: '',
+      maxlength: 1000,
+    },
+    educationCertifications: {
+      type: String,
+      default: '',
+      maxlength: 1000,
+    },
+    linkedinUrl: {
+      type: String,
+      default: '',
+      maxlength: 300,
+      trim: true,
+    },
+    githubUrl: {
+      type: String,
+      default: '',
+      maxlength: 300,
+      trim: true,
+    },
+    portfolioWebsite: {
+      type: String,
+      default: '',
+      maxlength: 300,
+      trim: true,
+    },
     // ✅ VALIDATION: Budget Preference - max 120 characters
     budgetPreference: {
       type: String,
