@@ -11,6 +11,8 @@ const chatRoutes = require('./routes/chatRoutes');
 const portfolioRoutes = require('./routes/portfolioRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const jobRoutes = require('./routes/jobRoutes');
+const applicationRoutes = require('./routes/applicationRoutes');
 
 const socketIo = require('./socket');
 const http = require('http');
@@ -36,6 +38,8 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/jobs', jobRoutes);
+app.use('/api/applications', applicationRoutes);
 
 // Health check
 app.get('/', (req, res) => {

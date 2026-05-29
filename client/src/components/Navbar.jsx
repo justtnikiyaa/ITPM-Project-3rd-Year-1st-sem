@@ -36,6 +36,14 @@ const Navbar = () => {
                     >
                         Browse Services
                     </Link>
+                    {user?.isVerified && (
+                        <Link
+                            to="/jobs"
+                            className={`navbar-link navbar-link--nav ${location.pathname.startsWith('/jobs') ? 'navbar-link--active' : ''}`}
+                        >
+                            Open Jobs
+                        </Link>
+                    )}
                     <Link
                         to="/become-seller"
                         className={`navbar-link navbar-link--nav ${location.pathname === '/become-seller' ? 'navbar-link--active' : ''}`}
@@ -146,6 +154,11 @@ const Navbar = () => {
                     <Link to="/#services" className="navbar-mobile-link" onClick={closeMobileMenu}>
                         Browse Services
                     </Link>
+                    {user?.isVerified && (
+                        <Link to="/jobs" className="navbar-mobile-link" onClick={closeMobileMenu}>
+                            Open Jobs
+                        </Link>
+                    )}
                     <Link to="/become-seller" className="navbar-mobile-link" onClick={closeMobileMenu}>
                         Become a Seller
                     </Link>

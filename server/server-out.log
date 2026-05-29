@@ -12,46 +12,42 @@
 🚀 Server running on port 5000
 ✅ Email transporter ready
    Using: unigig.project@gmail.com
+[DEBUG] Service created successfully for seller: 69c367b12eb02559787d9550
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node server.js`[39m
+✅ Connected to MongoDB
+🚀 Server running on port 5000
+✅ Email transporter ready
+   Using: unigig.project@gmail.com
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node server.js`[39m
+✅ Connected to MongoDB
+🚀 Server running on port 5000
+✅ Email transporter ready
+   Using: unigig.project@gmail.com
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node server.js`[39m
+✅ Connected to MongoDB
+🚀 Server running on port 5000
+✅ Email transporter ready
+   Using: unigig.project@gmail.com
 ✅ OTP email sent successfully: {
-  to: 'nihindudulavin02@gmail.com',
-  messageId: '<ead4d42a-71e3-6f36-e731-7b523102dfef@gmail.com>',
-  timestamp: '2026-04-03T12:35:19.245Z'
+  to: 'codex-buyer-app-1775593455868@gmail.com',
+  messageId: '<a18927e9-9e71-8fb2-dc2b-9f61e2f8eb85@gmail.com>',
+  timestamp: '2026-04-07T20:24:19.663Z'
 }
-📧 OTP sent to: nihindudulavin02@gmail.com
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-🚀 Server running on port 5000
-✅ Email transporter ready
-   Using: unigig.project@gmail.com
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-[31m[nodemon] app crashed - waiting for file changes before starting...[39m
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-🚀 Server running on port 5000
-✅ Email transporter ready
-   Using: unigig.project@gmail.com
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-[31m[nodemon] app crashed - waiting for file changes before starting...[39m
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-🚀 Server running on port 5000
-✅ Email transporter ready
-   Using: unigig.project@gmail.com
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-[31m[nodemon] app crashed - waiting for file changes before starting...[39m
-[32m[nodemon] restarting due to changes...[39m
-[32m[nodemon] starting `node server.js`[39m
-✅ Connected to MongoDB
-🚀 Server running on port 5000
-✅ Email transporter ready
-   Using: unigig.project@gmail.com
-[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+✅ OTP email sent successfully: {
+  to: 'codex-seller-app-1775593455868@my.sliit.lk',
+  messageId: '<00f6c2b7-6958-841a-d561-bb16f2baea2a@gmail.com>',
+  timestamp: '2026-04-07T20:24:20.570Z'
+}
+✅ OTP email sent successfully: {
+  to: 'codex-seller-app-1775593475428@my.sliit.lk',
+  messageId: '<f4a22c6c-ab2f-e21c-3ab4-1afee6030d27@gmail.com>',
+  timestamp: '2026-04-07T20:24:39.270Z'
+}
+✅ OTP email sent successfully: {
+  to: 'codex-buyer-app-1775593475428@gmail.com',
+  messageId: '<92c1354f-3ecb-f86b-f89d-abffd2c39b3b@gmail.com>',
+  timestamp: '2026-04-07T20:24:39.505Z'
+}
